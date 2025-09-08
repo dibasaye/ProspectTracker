@@ -34,8 +34,17 @@ class Site extends Model
         'price_24_months',
         'price_cash',
         'enable_36',
-        'price_36_months', 
-
+        'price_36_months',
+        // Nouveaux champs pour les prix par position
+        'price_angle',
+        'price_facade',
+        'price_interieur',
+        'supplement_angle',
+        'supplement_facade',
+        'enable_payment_cash',
+        'enable_payment_1_year',
+        'enable_payment_2_years',
+        'enable_payment_3_years',
     ];
 
     protected $casts = [
@@ -48,6 +57,15 @@ class Site extends Model
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',
         'is_active' => 'boolean',
+        'price_angle' => 'decimal:2',
+        'price_facade' => 'decimal:2',
+        'price_interieur' => 'decimal:2',
+        'supplement_angle' => 'decimal:2',
+        'supplement_facade' => 'decimal:2',
+        'enable_payment_cash' => 'boolean',
+        'enable_payment_1_year' => 'boolean',
+        'enable_payment_2_years' => 'boolean',
+        'enable_payment_3_years' => 'boolean',
     ];
 
     public function lots(): HasMany
@@ -88,5 +106,45 @@ class Site extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    /**
+     * Calcule le prix de base selon la position du lot
+     */
+    public function getPriceByPosition(string $position): ?float
+    {
+        return match($position) {
+            'angle' => $this->price_angle,
+            'facade' => $this->price_facade,
+            'interieur' => $this->price_interieur,
+            default => null
+        };
+    }
+
+    /**
+     * Vérifie si un plan de paiement est activé
+     */
+    public function isPaymentPlanEnabled(string $plan): bool
+    {
+        return match($plan) {
+            'cash' => $this->enable_payment_cash,
+            '1_year' => $this->enable_payment_1_year,
+            '2_years' => $this->enable_payment_2_years,
+            '3_years' => $this->enable_payment_3_years,
+            default => false
+        };
+    }
+
+    /**
+     * Retourne les plans de paiement disponibles
+     */
+    public function getAvailablePaymentPlans(): array
+    {
+        $plans = [];
+        if ($this->enable_payment_cash) $plans[] = 'cash';
+        if ($this->enable_payment_1_year) $plans[] = '1_year';
+        if ($this->enable_payment_2_years) $plans[] = '2_years';
+        if ($this->enable_payment_3_years) $plans[] = '3_years';
+        return $plans;
     }
 }

@@ -381,6 +381,66 @@ class PaymentValidationController extends Controller
                 'confirmed_by' => auth()->id(),
                 'confirmed_at' => $now
             ]);
+            
+            // **NOUVEAU**: Mettre à jour l'échéance si ce paiement est lié à une échéance
+            if ($payment->payment_schedule_id) {
+                $this->updatePaymentScheduleOnValidation($payment);
+            }
+        }
+    }
+    
+    /**
+     * Met à jour l'échéance quand son paiement est complètement validé
+     */
+    private function updatePaymentScheduleOnValidation(Payment $payment)
+    {
+        try {
+            $schedule = \App\Models\PaymentSchedule::find($payment->payment_schedule_id);
+            
+            if ($schedule && !$schedule->is_paid) {
+                // Marquer l'échéance comme payée
+                $schedule->update([
+                    'is_paid' => true,
+                    'paid_date' => $payment->payment_date ?? now(),
+                    'payment_method' => $payment->payment_method,
+                    'notes' => 'Paiement validé après processus de validation 4 étapes',
+                    'amount' => $payment->amount, // Utiliser le montant validé
+                ]);
+                
+                // Mettre à jour le contrat lié
+                $contract = $schedule->contract;
+                if ($contract) {
+                    $contract->paid_amount += $payment->amount;
+                    $contract->remaining_amount = max(0, $contract->remaining_amount - $payment->amount);
+                    $contract->save();
+                }
+                
+                // Notifier le client (si la notification existe)
+                try {
+                    if ($contract && $contract->client && class_exists('\\App\\Notifications\\PaymentReceiptNotification')) {
+                        $contract->client->notify(new \App\Notifications\PaymentReceiptNotification($schedule));
+                    }
+                } catch (\Exception $e) {
+                    // Ignorer l'erreur de notification - ce n'est pas critique
+                    \Log::warning('Erreur lors de l\'envoi de la notification de paiement: ' . $e->getMessage());
+                }
+                
+                // Enregistrer l'activité
+                activity()
+                    ->performedOn($schedule)
+                    ->causedBy(auth()->user())
+                    ->withProperties([
+                        'payment_id' => $payment->id,
+                        'amount' => $payment->amount,
+                        'validation_completed' => true
+                    ])
+                    ->log('\u00c9chéance marquée comme payée après validation complète du paiement');
+            }
+        } catch (\Exception $e) {
+            \Log::error('Erreur lors de la mise à jour de l\'\u00e9chéance après validation: ' . $e->getMessage(), [
+                'payment_id' => $payment->id,
+                'payment_schedule_id' => $payment->payment_schedule_id
+            ]);
         }
     }
     

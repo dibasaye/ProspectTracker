@@ -14,9 +14,14 @@
                 </nav>
             </div>
             @if(auth()->user()->isAdmin() || auth()->user()->isManager())
-                <a href="{{ route('sites.lots.create', $site) }}" class="btn btn-primary">
-                    <i class="fas fa-plus me-2"></i>Nouveau Lot
-                </a>
+                <div class="d-flex gap-2">
+                    <a href="{{ route('sites.lots.create', $site) }}" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i>Nouveau Lot
+                    </a>
+                    <a href="{{ route('sites.lots.bulk-create', $site) }}" class="btn btn-success">
+                        <i class="fas fa-layer-group me-2"></i>Ajout en masse
+                    </a>
+                </div>
             @endif
         </div>
     </x-slot>
@@ -158,9 +163,23 @@
                                     </div>
 
                                     <div class="mb-2">
-                                        <div class="fw-bold text-primary">{{ number_format($lot->final_price, 0, ',', ' ') }} FCFA</div>
-                                        @if($lot->position !== 'interieur')
-                                            <small class="text-muted">(Base : {{ number_format($lot->base_price, 0, ',', ' ') }} FCFA)</small>
+                                        @if($lot->price_cash)
+                                            <div class="fw-bold text-success">💰 {{ number_format($lot->price_cash, 0, ',', ' ') }} FCFA</div>
+                                            <small class="text-muted">Comptant</small>
+                                            @if($lot->price_1_year && $site->enable_payment_1_year)
+                                                <div class="small text-primary">📅 1 an : {{ number_format($lot->price_1_year, 0, ',', ' ') }} FCFA</div>
+                                            @endif
+                                            @if($lot->price_2_years && $site->enable_payment_2_years)
+                                                <div class="small text-warning">📅 2 ans : {{ number_format($lot->price_2_years, 0, ',', ' ') }} FCFA</div>
+                                            @endif
+                                            @if($lot->price_3_years && $site->enable_payment_3_years)
+                                                <div class="small text-danger">📅 3 ans : {{ number_format($lot->price_3_years, 0, ',', ' ') }} FCFA</div>
+                                            @endif
+                                        @else
+                                            <div class="fw-bold text-primary">{{ number_format($lot->final_price, 0, ',', ' ') }} FCFA</div>
+                                            @if($lot->position !== 'interieur')
+                                                <small class="text-muted">(Base : {{ number_format($lot->base_price, 0, ',', ' ') }} FCFA)</small>
+                                            @endif
                                         @endif
                                     </div>
 
@@ -240,9 +259,14 @@
             <h5 class="text-muted">Aucun lot créé</h5>
             <p class="text-muted">Commencez par créer les lots de ce site</p>
             @if(auth()->user()->isAdmin() || auth()->user()->isManager())
-                <a href="{{ route('sites.lots.create', $site) }}" class="btn btn-primary">
-                    <i class="fas fa-plus me-2"></i>Créer un lot
-                </a>
+                <div class="d-flex gap-2">
+                    <a href="{{ route('sites.lots.create', $site) }}" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i>Créer un lot
+                    </a>
+                    <a href="{{ route('sites.lots.bulk-create', $site) }}" class="btn btn-success">
+                        <i class="fas fa-layer-group me-2"></i>Ajout en masse
+                    </a>
+                </div>
             @endif
         </div>
     @endif

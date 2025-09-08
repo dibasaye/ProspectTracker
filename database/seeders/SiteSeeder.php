@@ -18,9 +18,14 @@ class SiteSeeder extends Seeder
                 'description' => 'Un projet résidentiel moderne avec toutes les commodités dans un quartier prisé de Dakar.',
                 'total_area' => 5000.00,
                 'total_lots' => 50,
-                'base_price_per_sqm' => 85000,
-                'reservation_fee' => 500000,
-                'membership_fee' => 200000,
+                'angle_price' => 10000000,  // 10,000,000 FCFA
+                'facade_price' => 9000000,   // 9,000,000 FCFA
+                'interior_price' => 8000000, // 8,000,000 FCFA
+                'one_year_price' => 1000000,  // 1,000,000 FCFA
+                'two_years_price' => 500000,  // 500,000 FCFA
+                'three_years_price' => 0,     // 0 FCFA (non activé)
+                'reservation_fee' => 500000,  // 500,000 FCFA
+                'membership_fee' => 200000,   // 200,000 FCFA
                 'payment_plan' => '24_months',
                 'amenities' => ['electricite', 'eau_courante', 'routes_pavees', 'espaces_verts', 'securite'],
                 'status' => 'active',
@@ -45,7 +50,13 @@ class SiteSeeder extends Seeder
             if (!$existingLot) {
                 $position = $positions[array_rand($positions)];
                 $area = rand(200, 500);
-                $basePrice = $area * $site1->base_price_per_sqm;
+                // Calcul du prix de base en fonction de la position
+                $basePrice = match($position) {
+                    'angle' => $site1->angle_price,
+                    'facade' => $site1->facade_price,
+                    'interieur' => $site1->interior_price,
+                    default => $site1->interior_price
+                };
                 $positionSupplement = $positionSupplements[$position] * $area;
                 $finalPrice = $basePrice + $positionSupplement;
 
@@ -72,9 +83,14 @@ class SiteSeeder extends Seeder
                 'description' => 'Un développement résidentiel abordable avec des infrastructures modernes.',
                 'total_area' => 8000.00,
                 'total_lots' => 80,
-                'base_price_per_sqm' => 65000,
-                'reservation_fee' => 300000,
-                'membership_fee' => 150000,
+                'angle_price' => 8000000,    // 8,000,000 FCFA
+                'facade_price' => 7000000,   // 7,000,000 FCFA
+                'interior_price' => 6000000, // 6,000,000 FCFA
+                'one_year_price' => 800000,  // 800,000 FCFA
+                'two_years_price' => 400000, // 400,000 FCFA
+                'three_years_price' => 200000, // 200,000 FCFA
+                'reservation_fee' => 300000, // 300,000 FCFA
+                'membership_fee' => 150000,  // 150,000 FCFA
                 'payment_plan' => '36_months',
                 'amenities' => ['electricite', 'eau_courante', 'routes_goudronnees', 'mosquee', 'ecole'],
                 'status' => 'active',
@@ -96,7 +112,13 @@ class SiteSeeder extends Seeder
             if (!$existingLot) {
                 $position = $positions[array_rand($positions)];
                 $area = rand(250, 400);
-                $basePrice = $area * $site2->base_price_per_sqm;
+                // Calcul du prix de base en fonction de la position
+                $basePrice = match($position) {
+                    'angle' => $site2->angle_price,
+                    'facade' => $site2->facade_price,
+                    'interieur' => $site2->interior_price,
+                    default => $site2->interior_price
+                };
                 $positionSupplement = $positionSupplements[$position] * $area;
                 $finalPrice = $basePrice + $positionSupplement;
 

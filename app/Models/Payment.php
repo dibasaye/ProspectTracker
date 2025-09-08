@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Payment extends Model
 {
@@ -14,6 +15,8 @@ class Payment extends Model
         'client_id',
         'site_id',
         'lot_id',
+        'contract_id',
+        'payment_schedule_id',
         'type',
         'amount',
         'payment_method',
@@ -26,6 +29,8 @@ class Payment extends Model
         'confirmed_by',
         'confirmed_at',
         'notes',
+        'created_by',
+        'completed_at',
         // Validation en 4 étapes
         'validation_status',
         // Caissier
@@ -125,6 +130,47 @@ class Payment extends Model
     public function confirmedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'confirmed_by');
+    }
+    
+    /**
+     * Relation avec le contrat
+     */
+    public function contract(): BelongsTo
+    {
+        return $this->belongsTo(Contract::class);
+    }
+    
+    /**
+     * Relation avec l'échéance de paiement
+     */
+    public function paymentSchedule(): BelongsTo
+    {
+        return $this->belongsTo(PaymentSchedule::class);
+    }
+
+    /**
+     * Get all cash transactions associated with this payment.
+     */
+    public function cashTransactions(): HasMany
+    {
+        return $this->hasMany(CashTransaction::class, 'payment_id');
+    }
+    
+    /**
+     * Relation avec l'utilisateur qui a créé le paiement
+     */
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Relation many-to-many avec les bordereaux de versement
+     */
+    public function paymentReceipts()
+    {
+        return $this->belongsToMany(PaymentReceipt::class, 'payment_receipt_payments')
+                    ->withTimestamps();
     }
 
     /**

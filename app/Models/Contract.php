@@ -33,6 +33,9 @@ class Contract extends Model
         'signed_by_agent',
         'notes',
         'content',
+        'is_editable',
+        'validated_by',
+        'validated_at',
     ];
 
     protected $casts = [
@@ -43,7 +46,9 @@ class Contract extends Model
         'start_date' => 'date',
         'end_date' => 'date',
         'signature_date' => 'date',
+        'validated_at' => 'datetime',
         'terms_and_conditions' => 'array',
+        'is_editable' => 'boolean',
     ];
 
     public function client(): BelongsTo
@@ -82,6 +87,11 @@ class Contract extends Model
     public function signedByAgent(): BelongsTo
     {
         return $this->belongsTo(User::class, 'signed_by_agent');
+    }
+    
+    public function validatedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'validated_by');
     }
 
     public function paymentSchedules(): HasMany

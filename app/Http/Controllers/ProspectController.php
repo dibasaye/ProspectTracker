@@ -121,7 +121,16 @@ class ProspectController extends Controller
     
     public function show(Prospect $prospect)
     {
-        $prospect->load(['assignedTo', 'interestedSite', 'payments', 'contract', 'lots']);
+        $prospect->load([
+            'assignedTo', 
+            'interestedSite', 
+            'payments', 
+            'contract', 
+            'reservations' => function($query) {
+                $query->where('expires_at', '>', now())
+                      ->with(['lot.site']);
+            }
+        ]);
         
         return view('prospects.show', compact('prospect'));
     }

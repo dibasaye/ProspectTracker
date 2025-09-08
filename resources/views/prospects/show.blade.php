@@ -99,6 +99,96 @@
             </div>
         </div>
 
+        <!-- Lots réservés -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-map-marked-alt me-2"></i>Lots réservés
+                    @php
+                        $reservationsCount = $prospect->reservations ? $prospect->reservations->count() : 0;
+                    @endphp
+                    @if($reservationsCount > 0)
+                        <span class="badge bg-primary">{{ $reservationsCount }}</span>
+                    @endif
+                </h5>
+
+                @php
+                    $hasReservations = $prospect->reservations && $prospect->reservations->count() > 0;
+                @endphp
+
+                @if($hasReservations)
+                    <div class="row">
+                        @foreach($prospect->reservations as $reservation)
+                            <div class="col-md-6 mb-3">
+                                <div class="card border-primary">
+                                    <div class="card-body">
+                                        <h6 class="card-title">
+                                            <i class="fas fa-map-marker-alt me-2"></i>
+                                            Lot {{ $reservation->lot->lot_number }}
+                                            @if($reservation->lot->status === 'reserve')
+                                                <span class="badge bg-warning">Réservé</span>
+                                            @elseif($reservation->lot->status === 'vendu') 
+                                                <span class="badge bg-success">Vendu</span>
+                                            @endif
+                                        </h6>
+                                        
+                                        <p class="card-text">
+                                            <i class="fas fa-building me-2"></i><strong>Site :</strong> {{ $reservation->lot->site->name }}<br>
+                                            <i class="fas fa-ruler-combined me-2"></i><strong>Superficie :</strong> {{ number_format($reservation->lot->area, 0) }} m²<br>
+                                            @if($reservation->lot->price)
+                                                <i class="fas fa-tag me-2"></i><strong>Prix :</strong> {{ number_format($reservation->lot->price, 0, ',', ' ') }} FCFA
+                                            @endif
+                                        </p>
+
+                                        <div class="mt-2">
+                                            <small class="text-muted">
+                                                <i class="fas fa-clock me-1"></i>
+                                                Réservé jusqu'au {{ $reservation->expires_at->format('d/m/Y H:i') }}
+                                            </small>
+                                        </div>
+
+                                        <div class="mt-3">
+                                            <a href="{{ route('sites.lots', $reservation->lot->site) }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye me-1"></i>Voir sur le plan du site
+                                            </a>
+                                            @if($reservation->lot->contract)
+                                                <a href="{{ route('contracts.show', $reservation->lot->contract) }}" class="btn btn-sm btn-outline-success">
+                                                    <i class="fas fa-file-contract me-1"></i>Contrat
+                                                </a>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            </div>
+                        @endforeach
+                    </div>
+
+                    <!-- Résumé rapide -->
+                    <div class="alert alert-info mt-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Résumé :</strong> Ce client a réservé {{ $prospect->reservations->count() }} lot(s) 
+                        @if($prospect->reservations->pluck('lot.site_id')->unique()->count() > 1)
+                            dans {{ $prospect->reservations->pluck('lot.site_id')->unique()->count() }} site(s) différent(s)
+                        @else
+                            dans le site "{{ $prospect->reservations->first()->lot->site->name }}"
+                        @endif
+                        pour une superficie totale de {{ number_format($prospect->reservations->sum('lot.area'), 0) }} m².
+                    </div>
+                @else
+                    <div class="text-center py-4">
+                        <i class="fas fa-map-marker-alt text-muted fa-3x mb-3"></i>
+                        <p class="text-muted">Ce client n'a encore réservé aucun lot.</p>
+                        @if(auth()->user()->isAdmin() || auth()->user()->isAgent())
+                            <a href="{{ route('reservations.create', $prospect) }}" class="btn btn-outline-primary">
+                                <i class="fas fa-plus me-1"></i>Réserver un lot
+                            </a>
+                        @endif
+                    </div>
+                @endif
+            </div>
+        </div>
+
         <!-- Contrat -->
         <div class="card shadow-sm mb-4">
             <div class="card-body">

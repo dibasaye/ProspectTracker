@@ -45,9 +45,12 @@ class ContractController extends Controller
 
     public function show(Contract $contract)
     {
-        $contract->load(['client', 'lot', 'site', 'paymentSchedules']);
-
-        return view('contracts.show', compact('contract'));
+        $contract->load(['client', 'lot', 'site', 'paymentSchedules', 'validatedBy']);
+        
+        $canEdit = auth()->user()->isAdmin() && $contract->is_editable;
+        $canView = true; // All authenticated users can view contracts
+        
+        return view('contracts.show', compact('contract', 'canEdit', 'canView'));
     }
 
     public function generateFromReservation(Prospect $prospect)
@@ -412,8 +415,34 @@ class ContractController extends Controller
         }
     }
 
+    
+    /**
+     * Validate contract and convert to locked PDF
+     */
+    public function validateContract(Contract $contract)
+    {
+        // Only super admin can validate contracts
+        if (!auth()->user()->isAdmin()) {
+            abort(403, 'Seul le super administrateur peut valider les contrats.');
+        }
+        
+        $contract->update([
+            'is_editable' => false,
+            'validated_by' => auth()->id(),
+            'validated_at' => now(),
+            'status' => 'valide'
+        ]);
+        
+        return back()->with('success', 'Contrat validé avec succès. Il est maintenant verrouillé en PDF.');
+    }
+
     public function exportWord(Contract $contract)
     {
+        // Only allow Word export if contract is editable and user is admin
+        if (!$contract->is_editable && !auth()->user()->isAdmin()) {
+            return back()->with('error', 'Ce contrat est verrouillé. Seul le PDF est disponible.');
+        }
+        
         // Récupérer le contenu modifié s'il existe
         if (request()->has('content')) {
             $content = request()->input('content');
@@ -504,7 +533,7 @@ class ContractController extends Controller
             $section->addText(
                 'Article 1 - OBJET\n' .
                 'La société YAYE DIA BTP consent à M./Mme ' . $contract->client->full_name . 
-                ' une option de réservation sur le lot n°' . $contract->lot->reference . 
+                ' une option de réservation sur le lot n°' . $contract->lot-number>reference . 
                 ' situé à ' . $contract->site->name . '.',
                 [],
                 ['spaceAfter' => 400]

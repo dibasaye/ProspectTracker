@@ -252,10 +252,10 @@
                                             <td>
                                                 <div class="btn-group-vertical" role="group">
                                                     @if(!$schedule->is_paid)
-                                                        <button type="button" class="btn btn-sm btn-success mb-1" 
+                                                        <button type="button" class="btn btn-sm btn-success mb-1 fw-bold" 
                                                                 onclick="openPaymentModal({{ $schedule->id }}, {{ $schedule->amount }})"
-                                                                title="Marquer comme payé">
-                                                            <i class="fas fa-check"></i> Payé
+                                                                title="Effectuer un versement">
+                                                            <i class="fas fa-money-bill-wave me-1"></i>Verser
                                                         </button>
                                                     @endif
                                                     <a href="{{ route('schedules.receipt', $schedule) }}" 
@@ -303,25 +303,37 @@
     <div class="modal fade" id="paymentModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
-                <div class="modal-header bg-success text-white">
+                <div class="modal-header bg-warning text-white">
                     <h5 class="modal-title">
-                        <i class="fas fa-check-circle me-2"></i>Marquer comme payé
+                        <i class="fas fa-hourglass-start me-2"></i>Processus de validation du paiement
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <form id="paymentForm" method="POST">
+                <form id="paymentForm" method="POST" enctype="multipart/form-data">
                     @csrf
                     @method('PUT')
                     <div class="modal-body">
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle me-2"></i>
-                            <strong>Important :</strong> Cette action marquera définitivement cette échéance comme payée.
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Nouveau processus :</strong> Ce paiement sera mis en attente de validation et devra passer par 4 étapes :
+                            <br><small class="mt-2 d-block">
+                                1️⃣ <strong>Caissier</strong> : Vérification et justificatif<br>
+                                2️⃣ <strong>Responsable</strong> : Validation du paiement<br>
+                                3️⃣ <strong>Administrateur</strong> : Validation finale<br>
+                                4️⃣ <strong>Complété</strong> : Échéance automatiquement marquée comme payée
+                            </small>
                         </div>
                         <div class="mb-3">
                             <label class="form-label fw-bold">Montant reçu (FCFA)</label>
                             <input type="number" id="amount-input" name="amount" class="form-control" required min="0" step="100" 
                                    placeholder="Ex: 500000" oninput="updateAmountDisplay(this.value)">
-                            <div class="form-text">Le montant saisi sera affiché dans la colonne Montant</div>
+                            <div class="form-text">Ce montant sera validé par le caissier lors de la première étape</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Justificatif de paiement (Optionnel)</label>
+                            <input type="file" name="payment_proof" class="form-control" 
+                                   accept=".pdf,.jpg,.jpeg,.png" title="Formats acceptés: PDF, JPG, PNG">
+                            <div class="form-text">Vous pouvez ajouter un justificatif maintenant ou le caissier le demandera plus tard</div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label fw-bold">Méthode de paiement</label>
@@ -345,8 +357,8 @@
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                             <i class="fas fa-times me-1"></i>Annuler
                         </button>
-                        <button type="submit" class="btn btn-success">
-                            <i class="fas fa-check me-1"></i>Confirmer le paiement
+                        <button type="submit" class="btn btn-warning text-white">
+                            <i class="fas fa-hourglass-start me-1"></i>Démarrer la Validation
                         </button>
                     </div>
                 </form>

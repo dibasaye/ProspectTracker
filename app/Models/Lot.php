@@ -28,8 +28,13 @@ class Lot extends Model
         'has_utilities',
         'features',
         'notes',
-         'reservation_id',
-
+        'reservation_id',
+        // Nouveaux champs pour les plans de paiement
+        'price_cash',
+        'price_1_year',
+        'price_2_years',
+        'price_3_years',
+        'is_manually_priced',
     ];
 
     protected $casts = [
@@ -41,6 +46,11 @@ class Lot extends Model
         'coordinates' => 'array',
         'features' => 'array',
         'has_utilities' => 'boolean',
+        'price_cash' => 'decimal:2',
+        'price_1_year' => 'decimal:2',
+        'price_2_years' => 'decimal:2',
+        'price_3_years' => 'decimal:2',
+        'is_manually_priced' => 'boolean',
     ];
 
     public function site(): BelongsTo
@@ -105,26 +115,94 @@ class Lot extends Model
     }
 
     public function getStatusColorAttribute()
-{
-    return match($this->status) {
-        'disponible' => '#28a745',           // vert
-        'reserve_temporaire' => '#ffc107',   // jaune/orange
-        'reserve' => '#fd7e14',              // orange foncé
-        'vendu' => '#dc3545',                // rouge
-        default => '#6c757d',                // gris (fallback)
-    };
-}
+    {
+        if (empty($this->status)) {
+            return '#6c757d';  // gris par défaut si le statut est vide
+        }
+        
+        return match($this->status) {
+            'disponible' => '#28a745',           // vert
+            'reserve_temporaire' => '#ffc107',   // jaune/orange
+            'reserve' => '#fd7e14',              // orange foncé
+            'vendu' => '#dc3545',                // rouge
+            default => '#6c757d',                // gris (fallback)
+        };
+    }
 
-public function getStatusLabelAttribute()
-{
-    return match($this->status) {
-        'disponible' => 'Disponible',
-        'reserve_temporaire' => 'Réservation temporaire',
-        'reserve' => 'Réservé',
-        'vendu' => 'Vendu',
-        default => 'Inconnu',
-    };
-}
+    public function getStatusLabelAttribute()
+    {
+        if (empty($this->status)) {
+            return 'Inconnu';  // Valeur par défaut si le statut est vide
+        }
+        
+        return match($this->status) {
+            'disponible' => 'Disponible',
+            'reserve_temporaire' => 'Réservation temporaire',
+            'reserve' => 'Réservé',
+            'vendu' => 'Vendu',
+            default => 'Inconnu',
+        };
+    }
 
+    /**
+     * Calcule automatiquement les prix selon les plans de paiement
+     */
+    public function calculatePrices(): void
+    {
+        if ($this->is_manually_priced) {
+            return; // Ne pas recalculer si les prix sont manuels
+        }
 
+        $basePrice = $this->site->getPriceByPosition($this->position);
+        
+        if (!$basePrice) {
+            return;
+        }
+
+        // Prix au comptant (prix de base)
+        $this->price_cash = $basePrice;
+        
+        // Prix avec échelonnement (majoration selon la durée)
+        $this->price_1_year = $basePrice * 1.05; // +5% pour 1 an
+        $this->price_2_years = $basePrice * 1.10; // +10% pour 2 ans
+        $this->price_3_years = $basePrice * 1.15; // +15% pour 3 ans
+    }
+
+    /**
+     * Retourne le prix selon le plan de paiement
+     */
+    public function getPriceByPaymentPlan(string $plan): ?float
+    {
+        return match($plan) {
+            'cash' => $this->price_cash,
+            '1_year' => $this->price_1_year,
+            '2_years' => $this->price_2_years,
+            '3_years' => $this->price_3_years,
+            default => null
+        };
+    }
+
+    /**
+     * Retourne le label de la position
+     */
+    public function getPositionLabelAttribute(): string
+    {
+        return match($this->position) {
+            'angle' => 'Angle',
+            'facade' => 'Façade', 
+            'interieur' => 'Intérieur',
+            default => 'Non défini',
+        };
+    }
+
+    /**
+     * Sauvegarde avec calcul automatique des prix
+     */
+    public function save(array $options = []): bool
+    {
+        $this->calculatePrices();
+        return parent::save($options);
+    }
+
+    
 }

@@ -201,5 +201,14 @@ public function reservations()
     return $this->hasMany(\App\Models\Reservation::class);
 }
 
+public function scopeFilter($query, array $filters)
+{
+    // Implémentez votre logique de filtrage ici
+    if (!empty($filters['site_id'])) {
+        $query->where('site_id', $filters['site_id']);
+    }
+    // Ajoutez d'autres filtres selon vos besoins
+}
+
 
 }

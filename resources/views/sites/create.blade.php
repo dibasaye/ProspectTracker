@@ -108,57 +108,85 @@
                 </div>
             </div>
 
+            <!-- Tarifs par position de lot -->
+            <div class="mt-4 p-3 border rounded bg-primary bg-opacity-10">
+                <h5 class="mb-3 text-primary"><i class="fas fa-map-marked-alt me-2"></i>Tarifs par position de lot</h5>
+                <p class="text-muted mb-3">Définissez les prix fixes selon l'emplacement des lots sur le site.</p>
+                
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold text-success">Prix lots en angle (FCFA)</label>
+                        <input type="number" class="form-control @error('price_angle') is-invalid @enderror" 
+                               name="price_angle" value="{{ old('price_angle') }}" 
+                               placeholder="Ex : 8000000" required>
+                        @error('price_angle')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                        <small class="text-muted">Lots situés aux angles du site</small>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold text-warning">Prix lots en façade (FCFA)</label>
+                        <input type="number" class="form-control @error('price_facade') is-invalid @enderror" 
+                               name="price_facade" value="{{ old('price_facade') }}" 
+                               placeholder="Ex : 6000000" required>
+                        @error('price_facade')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                        <small class="text-muted">Lots donnant sur la façade principale</small>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold text-info">Prix lots intérieurs (FCFA)</label>
+                        <input type="number" class="form-control @error('price_interieur') is-invalid @enderror" 
+                               name="price_interieur" value="{{ old('price_interieur') }}" 
+                               placeholder="Ex : 5000000" required>
+                        @error('price_interieur')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                        <small class="text-muted">Lots situés à l'intérieur du site</small>
+                    </div>
+                </div>
+            </div>
+
             <!-- Plan de paiement avec options à cocher -->
             <div class="mt-4 p-3 border rounded bg-light">
-                <h5 class="mb-3">Plan de paiement</h5>
+                <h5 class="mb-3"><i class="fas fa-credit-card me-2"></i>Options de paiement disponibles</h5>
+                <p class="text-muted mb-3">Sélectionnez les modes de paiement autorisés pour ce site.</p>
 
-                <!-- 12 mois -->
+                <!-- Paiement comptant -->
                 <div class="form-check mb-2">
-                    <input class="form-check-input toggle-price" type="checkbox" id="chk12" data-target="#price12" name="enable_12" {{ old('enable_12') ? 'checked' : '' }}>
-                    <label class="form-check-label" for="chk12">Option 12 mois</label>
-                </div>
-                <div class="mb-3 d-none @error('price_12_months') is-invalid @enderror" id="price12">
-                    <label class="form-label">Prix total (12 mois)</label>
-                    <input type="number" class="form-control @error('price_12_months') is-invalid @enderror" name="price_12_months" value="{{ old('price_12_months') }}" placeholder="Ex : 5000000">
-                    @error('price_12_months')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
+                    <input class="form-check-input" type="checkbox" id="chkCash" name="enable_payment_cash" {{ old('enable_payment_cash', true) ? 'checked' : '' }}>
+                    <label class="form-check-label fw-bold text-success" for="chkCash">
+                        <i class="fas fa-money-bill-wave me-1"></i>Paiement comptant
+                    </label>
                 </div>
 
-                <!-- 24 mois -->
+                <!-- Paiement 1 an -->
                 <div class="form-check mb-2">
-                    <input class="form-check-input toggle-price" type="checkbox" id="chk24" data-target="#price24" name="enable_24" {{ old('enable_24') ? 'checked' : '' }}>
-                    <label class="form-check-label" for="chk24">Option 24 mois</label>
-                </div>
-                <div class="mb-3 d-none @error('price_24_months') is-invalid @enderror" id="price24">
-                    <label class="form-label">Prix total (24 mois)</label>
-                    <input type="number" class="form-control @error('price_24_months') is-invalid @enderror" name="price_24_months" value="{{ old('price_24_months') }}" placeholder="Ex : 5500000">
-                    @error('price_24_months')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
+                    <input class="form-check-input" type="checkbox" id="chk1Year" name="enable_payment_1_year" {{ old('enable_payment_1_year', true) ? 'checked' : '' }}>
+                    <label class="form-check-label fw-bold text-primary" for="chk1Year">
+                        <i class="fas fa-calendar-alt me-1"></i>Paiement sur 1 an (+5%)
+                    </label>
                 </div>
 
-                <!-- 36 mois -->
+                <!-- Paiement 2 ans -->
                 <div class="form-check mb-2">
-                    <input class="form-check-input toggle-price" type="checkbox" id="chk36" data-target="#price36" name="enable_36" {{ old('enable_36') ? 'checked' : '' }}>
-                    <label class="form-check-label" for="chk36">Option 36 mois</label>
-                </div>
-                <div class="mb-3 d-none @error('price_36_months') is-invalid @enderror" id="price36">
-                    <label class="form-label">Prix total (36 mois)</label>
-                    <input type="number" class="form-control" name="price_36_months" placeholder="Ex : 6 000 000">
+                    <input class="form-check-input" type="checkbox" id="chk2Years" name="enable_payment_2_years" {{ old('enable_payment_2_years', true) ? 'checked' : '' }}>
+                    <label class="form-check-label fw-bold text-warning" for="chk2Years">
+                        <i class="fas fa-calendar-alt me-1"></i>Paiement sur 2 ans (+10%)
+                    </label>
                 </div>
 
-                <!-- Cash -->
+                <!-- Paiement 3 ans -->
                 <div class="form-check mb-2">
-                    <input class="form-check-input toggle-price" type="checkbox" id="chkCash" data-target="#priceCash" name="enable_cash" {{ old('enable_cash') ? 'checked' : '' }}>
-                    <label class="form-check-label" for="chkCash">Option Paiement cash</label>
+                    <input class="form-check-input" type="checkbox" id="chk3Years" name="enable_payment_3_years" {{ old('enable_payment_3_years') ? 'checked' : '' }}>
+                    <label class="form-check-label fw-bold text-danger" for="chk3Years">
+                        <i class="fas fa-calendar-alt me-1"></i>Paiement sur 3 ans (+15%)
+                    </label>
                 </div>
-                <div class="mb-3 d-none @error('price_cash') is-invalid @enderror" id="priceCash">
-                    <label class="form-label">Prix total (Paiement cash)</label>
-                    <input type="number" class="form-control @error('price_cash') is-invalid @enderror" name="price_cash" value="{{ old('price_cash') }}" placeholder="Ex : 4500000">
-                    @error('price_cash')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
+                
+                <div class="alert alert-info mt-3">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Note :</strong> Les prix finaux des lots seront calculés automatiquement en appliquant les majorations selon le plan de paiement choisi par le client.
                 </div>
             </div>
 
@@ -169,18 +197,4 @@
         </form>
     </div>
 
-    <!-- Script pour afficher/masquer les champs prix -->
-    <script>
-        document.querySelectorAll('.toggle-price').forEach(checkbox => {
-            checkbox.addEventListener('change', function() {
-                const target = document.querySelector(this.dataset.target);
-                if (this.checked) {
-                    target.classList.remove('d-none');
-                } else {
-                    target.classList.add('d-none');
-                    target.querySelector('input').value = ''; // réinitialiser si décoché
-                }
-            });
-        });
-    </script>
 </x-app-layout>

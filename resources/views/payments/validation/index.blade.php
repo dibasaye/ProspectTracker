@@ -110,6 +110,7 @@
                                 <th>Client</th>
                                 <th>Site/Lot</th>
                                 <th>Montant</th>
+                                <th>Type</th>
                                 <th>Méthode</th>
                                 <th>Date Paiement</th>
                                 <th>Statut</th>
@@ -135,6 +136,11 @@
                                     <div class="fw-bold text-success">{{ number_format($payment->amount, 0, ',', ' ') }} FCFA</div>
                                     <small class="text-muted">{{ $payment->getFormattedAmountAttribute() }}</small>
                                 </td>
+                                <td>
+                             <span class="badge bg-info text-dark">{{ ucfirst($payment->type ?? 'N/A') }}</span>
+                             </td>
+
+
                                 <td>
                                     @php
                                         $methodColors = [

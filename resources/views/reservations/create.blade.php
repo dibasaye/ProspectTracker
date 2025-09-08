@@ -155,7 +155,7 @@
                                      data-number="{{ strtolower($lot->lot_number) }}" 
                                      data-site="{{ strtolower($lot->site->name) }}">
                                     <label class="card h-100 lot-card p-3 shadow-sm d-block" style="cursor:pointer;">
-                                        <input type="radio" name="lot_id" value="{{ $lot->id }}" class="form-check-input me-2">
+                                        <input type="checkbox" name="lot_ids[]" value="{{ $lot->id }}" class="form-check-input me-2">
                                         <div>
                                             <div class="d-flex justify-content-between align-items-start mb-1">
                                                 <strong>Lot {{ $lot->lot_number }}</strong>
@@ -180,8 +180,13 @@
                         </div>
 
                         <div class="mt-4">
-                            <button type="submit" class="btn btn-primary">Réserver le lot sélectionné</button>
+                            <button type="submit" class="btn btn-primary" id="reserveButton" disabled>
+                                <i class="fas fa-bookmark me-2"></i>Réserver les lots sélectionnés
+                            </button>
                             <a href="{{ route('prospects.show', $prospect) }}" class="btn btn-secondary">Annuler</a>
+                            <div class="mt-2">
+                                <small class="text-muted" id="selectionCounter">Aucun lot sélectionné</small>
+                            </div>
                         </div>
                     </form>
                 @else
@@ -201,6 +206,37 @@
     @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            // Gestion de la sélection multiple de lots
+            const checkboxes = document.querySelectorAll('input[name="lot_ids[]"]');
+            const reserveButton = document.getElementById('reserveButton');
+            const selectionCounter = document.getElementById('selectionCounter');
+            
+            function updateSelectionStatus() {
+                const selectedCount = document.querySelectorAll('input[name="lot_ids[]"]:checked').length;
+                
+                if (selectedCount === 0) {
+                    reserveButton.disabled = true;
+                    selectionCounter.textContent = 'Aucun lot sélectionné';
+                    selectionCounter.className = 'text-muted';
+                } else if (selectedCount === 1) {
+                    reserveButton.disabled = false;
+                    selectionCounter.textContent = '1 lot sélectionné';
+                    selectionCounter.className = 'text-success fw-bold';
+                } else {
+                    reserveButton.disabled = false;
+                    selectionCounter.textContent = selectedCount + ' lots sélectionnés';
+                    selectionCounter.className = 'text-success fw-bold';
+                }
+            }
+            
+            // Ajouter l'événement de changement à toutes les cases à cocher
+            checkboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', updateSelectionStatus);
+            });
+            
+            // Initialiser l'état
+            updateSelectionStatus();
+            
             // Filtrage des lots
             const searchInput = document.getElementById('searchLot');
             const clearBtn = document.getElementById('clearFilters');

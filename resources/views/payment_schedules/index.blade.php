@@ -1,8 +1,8 @@
 <x-app-layout>
     <x-slot name="header">
         <div class="d-flex justify-content-between align-items-center">
-            <h2 class="h4 fw-bold">
-                <i class="fas fa-calendar-alt me-2"></i>Échéancier de Paiement
+            <h2 class="h4 fw-bold text-primary">
+                <i class="fas fa-users-cog me-2"></i>Gestion des Paiements Clients
             </h2>
             <div class="d-flex gap-2">
                 <button class="btn btn-outline-primary btn-sm" onclick="window.print()">
@@ -128,140 +128,140 @@
             </div>
         </div>
 
-        <!-- Tableau organisé par priorités -->
-        <div class="card">
-            <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">
-                    <i class="fas fa-list me-2"></i>Liste des Échéances
+        <!-- Tableau groupé par client avec design moderne -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-gradient-primary text-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold">
+                    <i class="fas fa-users me-2"></i>Paiements par Client
                 </h6>
                 <div class="d-flex gap-2">
-                    <span class="badge bg-success">Payé</span>
-                    <span class="badge bg-warning text-dark">En attente</span>
-                    <span class="badge bg-danger">En retard</span>
+                    <span class="badge bg-light text-dark">Total : {{ number_format($stats['total_amount'], 0, ',', ' ') }} F</span>
                 </div>
             </div>
             <div class="card-body p-0">
-                @if($schedules->count() > 0)
+                @if($clientsPaginated->count() > 0)
                     <div class="table-responsive">
                         <table class="table table-hover mb-0">
                             <thead class="table-dark">
                                 <tr>
-                                    <th style="width: 25%">Client & Contrat</th>
-                                    <th style="width: 15%">Site/Lot</th>
-                                    <th style="width: 15%">Échéance</th>
-                                    <th style="width: 10%">Montant</th>
-                                    <th style="width: 15%">Statut</th>
-                                    <th style="width: 10%">Date Paiement</th>
-                                    <th style="width: 10%">Actions</th>
+                                    <th style="width: 25%">
+                                        <i class="fas fa-user me-1"></i>Client & Contact
+                                    </th>
+                                    <th style="width: 15%" class="text-center">
+                                        <i class="fas fa-calculator me-1"></i>Montant Total
+                                    </th>
+                                    <th style="width: 15%" class="text-center">
+                                        <i class="fas fa-check-circle me-1"></i>Montant Total à Payer
+                                    </th>
+                                    <th style="width: 15%" class="text-center">
+                                        <i class="fas fa-clock me-1"></i>Montant en Attente
+                                    </th>
+                                    <th style="width: 15%" class="text-center">
+                                        <i class="fas fa-calendar-alt me-1"></i>Prochaine Échéance
+                                    </th>
+                                    <th style="width: 15%" class="text-center">
+                                        <i class="fas fa-cogs me-1"></i>Actions
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach($schedules as $schedule)
-                                    <tr class="{{ $schedule->is_paid ? 'table-success' : ($schedule->due_date->isPast() ? 'table-danger' : 'table-warning') }}">
+                                @foreach($clientsPaginated as $clientData)
+                                    @php
+                                        $client = $clientData['client'];
+                                        $progressPercentage = $clientData['total_amount'] > 0 ? 
+                                            ($clientData['paid_amount'] / $clientData['total_amount']) * 100 : 0;
+                                            
+                                        $statusClass = $clientData['overdue_schedules'] > 0 ? 'table-danger' : 
+                                                      ($clientData['pending_schedules'] > 0 ? 'table-warning' : 'table-success');
+                                    @endphp
+                                    <tr class="{{ $statusClass }}">
                                         <td>
                                             <div class="d-flex align-items-center">
                                                 <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-3" 
-                                                     style="width: 40px; height: 40px;">
-                                                    {{ substr($schedule->contract->client->full_name, 0, 1) }}
+                                                     style="width: 50px; height: 50px; font-size: 1.2rem;">
+                                                    {{ substr($client->full_name, 0, 1) }}
                                                 </div>
                                                 <div>
-                                                    <div class="fw-bold">{{ $schedule->contract->client->full_name }}</div>
-                                                    <small class="text-muted">{{ $schedule->contract->client->phone }}</small>
-                                                    <br>
+                                                    <div class="fw-bold fs-6">{{ $client->full_name }}</div>
                                                     <small class="text-muted">
-                                                        <strong>Contrat:</strong> {{ $schedule->contract->contract_number }}
+                                                        <i class="fas fa-phone me-1"></i>{{ $client->phone }}
                                                     </small>
                                                     <br>
-                                                    <button type="button" class="btn btn-sm btn-outline-info mt-1" 
-                                                            onclick="viewClientSchedules({{ $schedule->contract->client->id }}, '{{ $schedule->contract->client->full_name }}')"
-                                                            title="Voir toutes les échéances de ce client">
-                                                        <i class="fas fa-eye me-1"></i>Voir échéances
-                                                    </button>
+                                                    <small class="text-info">
+                                                        <i class="fas fa-file-contract me-1"></i>
+                                                        {{ count($clientData['contracts']) }} contrat(s)
+                                                    </small>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td>
-                                            <div class="fw-bold">{{ $schedule->contract->site->name ?? 'Site N/A' }}</div>
-                                            <small class="text-muted">
-                                                @if($schedule->contract->lot)
-                                                    {{ $schedule->contract->lot->lot_number ?? 'Lot sans référence' }}
-                                                @else
-                                                    <span class="text-warning">Lot non assigné</span>
-                                                @endif
-                                            </small>
-                                        </td>
-                                        <td>
-                                            <div class="fw-bold">{{ $schedule->due_date->format('d/m/Y') }}</div>
-                                            <small class="text-muted">
-                                                <strong>Échéance N°{{ $schedule->installment_number }}</strong>
-                                                <br>
-                                                @if($schedule->due_date->isPast() && !$schedule->is_paid)
-                                                    <span class="text-danger">
-                                                        <i class="fas fa-exclamation-triangle me-1"></i>
-                                                        Retard de {{ $schedule->due_date->diffForHumans() }}
-                                                    </span>
-                                                @elseif($schedule->due_date->isToday())
-                                                    <span class="text-warning">
-                                                        <i class="fas fa-clock me-1"></i>
-                                                        Aujourd'hui
-                                                    </span>
-                                                @else
-                                                    <span class="text-info">
-                                                        <i class="fas fa-calendar me-1"></i>
-                                                        {{ $schedule->due_date->diffForHumans() }}
-                                                    </span>
-                                                @endif
-                                            </small>
-                                        </td>
-                                        <td>
+                                        <td class="text-center">
                                             <div class="fw-bold text-primary fs-5">
-                                                {{ number_format($schedule->amount, 0, ',', ' ') }} F
+                                                {{ number_format($clientData['total_amount'], 0, ',', ' ') }} F
+                                            </div>
+                                            <small class="text-muted">
+                                                {{ $clientData['total_schedules'] }} échéances
+                                            </small>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="fw-bold text-primary fs-5">
+                                                {{ number_format($clientData['total_amount_due'] ?? $clientData['total_amount'], 0, ',', ' ') }} F
+                                            </div>
+                                            <small class="text-muted">
+                                                {{ $clientData['total_schedules'] }} échéances
+                                            </small>
+                                            <div class="progress mt-1" style="height: 6px;">
+                                                <div class="progress-bar bg-primary" role="progressbar" 
+                                                     style="width: 100%"></div>
                                             </div>
                                         </td>
-                                        <td>
-                                            @if($schedule->is_paid)
-                                                <span class="badge bg-success fs-6">
-                                                    <i class="fas fa-check me-1"></i>Payé
-                                                </span>
-                                            @elseif($schedule->due_date->isPast())
-                                                <span class="badge bg-danger fs-6">
-                                                    <i class="fas fa-exclamation-triangle me-1"></i>En retard
-                                                </span>
-                                            @else
-                                                <span class="badge bg-warning text-dark fs-6">
-                                                    <i class="fas fa-clock me-1"></i>En attente
-                                                </span>
-                                            @endif
+                                        <td class="text-center">
+                                            <div class="fw-bold text-warning fs-5">
+                                                {{ number_format($clientData['pending_amount'], 0, ',', ' ') }} F
+                                            </div>
+                                            <small class="text-muted">
+                                                {{ $clientData['pending_schedules'] }} en attente
+                                                @if($clientData['overdue_schedules'] > 0)
+                                                    <br><span class="text-danger">
+                                                        <i class="fas fa-exclamation-triangle me-1"></i>
+                                                        {{ $clientData['overdue_schedules'] }} en retard
+                                                    </span>
+                                                @endif
+                                            </small>
                                         </td>
-                                        <td>
-                                            @if($schedule->is_paid && $schedule->paid_date)
-                                                <div class="text-success fw-bold">
-                                                    {{ $schedule->paid_date->format('d/m/Y') }}
+                                        <td class="text-center">
+                                            @if($clientData['next_due_date'])
+                                                <div class="fw-bold">
+                                                    {{ $clientData['next_due_date']->format('d/m/Y') }}
                                                 </div>
-                                                <small class="text-muted">{{ $schedule->paid_date->format('H:i') }}</small>
+                                                <small class="text-muted">
+                                                    {{ $clientData['next_due_date']->diffForHumans() }}
+                                                </small>
                                             @else
-                                                <span class="text-muted">-</span>
+                                                <span class="text-success">
+                                                    <i class="fas fa-check-circle me-1"></i>
+                                                    Tout payé
+                                                </span>
                                             @endif
                                         </td>
-                                        <td>
+                                        <td class="text-center">
                                             <div class="btn-group-vertical" role="group">
-                                                @if(!$schedule->is_paid)
-                                                    <button type="button" class="btn btn-sm btn-success mb-1" 
-                                                            onclick="markAsPaid({{ $schedule->id }})"
-                                                            title="Marquer comme payé">
-                                                        <i class="fas fa-check"></i> Payé
+                                                @if($clientData['pending_amount'] > 0)
+                                                    <button type="button" class="btn btn-success btn-sm mb-1 fw-bold" 
+                                                            onclick="showPaymentModal({{ $client->id }}, '{{ $client->full_name }}', {{ $clientData['pending_amount'] }})"
+                                                            title="Effectuer un versement">
+                                                        <i class="fas fa-money-bill-wave me-1"></i>Verser
                                                     </button>
                                                 @endif
-                                                <a href="{{ route('schedules.receipt', $schedule) }}" 
-                                                   class="btn btn-sm btn-outline-primary mb-1" 
-                                                   title="Télécharger le reçu">
-                                                    <i class="fas fa-download"></i> Reçu
-                                                </a>
-                                                <a href="{{ route('contracts.show', $schedule->contract) }}" 
-                                                   class="btn btn-sm btn-outline-info" 
-                                                   title="Voir le contrat">
-                                                    <i class="fas fa-eye"></i> Contrat
-                                                </a>
+                                                <button type="button" class="btn btn-outline-info btn-sm mb-1" 
+                                                        onclick="showPaymentHistory({{ $client->id }}, '{{ $client->full_name }}')"
+                                                        title="Voir l'historique des paiements">
+                                                    <i class="fas fa-history me-1"></i>Historique
+                                                </button>
+                                                <button type="button" class="btn btn-outline-primary btn-sm" 
+                                                        onclick="viewClientSchedules({{ $client->id }}, '{{ $client->full_name }}')"
+                                                        title="Voir les détails des échéances">
+                                                    <i class="fas fa-list me-1"></i>Détails
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -270,26 +270,26 @@
                         </table>
                     </div>
                     
-                    <div class="card-footer">
+                    <div class="card-footer bg-light">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
                                 <small class="text-muted">
-                                    Affichage de {{ $schedules->firstItem() ?? 0 }} à {{ $schedules->lastItem() ?? 0 }} 
-                                    sur {{ $schedules->total() }} échéances
+                                    Affichage de {{ $clientsPaginated->firstItem() ?? 0 }} à {{ $clientsPaginated->lastItem() ?? 0 }} 
+                                    sur {{ $clientsPaginated->total() }} clients
                                 </small>
                             </div>
                             <div>
-                                {{ $schedules->links() }}
+                                {{ $clientsPaginated->links() }}
                             </div>
                         </div>
                     </div>
                 @else
                     <div class="text-center py-5">
-                        <i class="fas fa-calendar-times fa-4x text-muted mb-3"></i>
-                        <h5 class="text-muted">Aucune échéance trouvée</h5>
-                        <p class="text-muted">Aucune échéance ne correspond aux critères de recherche.</p>
+                        <i class="fas fa-users-slash fa-4x text-muted mb-3"></i>
+                        <h5 class="text-muted">Aucun client trouvé</h5>
+                        <p class="text-muted">Aucun client ne correspond aux critères de recherche.</p>
                         <a href="{{ route('payment-schedules.index') }}" class="btn btn-primary">
-                            <i class="fas fa-refresh me-1"></i>Voir toutes les échéances
+                            <i class="fas fa-refresh me-1"></i>Voir tous les clients
                         </a>
                     </div>
                 @endif
@@ -297,57 +297,125 @@
         </div>
     </div>
 
-    <!-- Modal pour marquer comme payé -->
-    <div class="modal fade" id="markAsPaidModal" tabindex="-1">
-        <div class="modal-dialog">
+    <!-- Modal pour effectuer un versement -->
+    <div class="modal fade" id="paymentModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
             <div class="modal-content">
-                <div class="modal-header bg-success text-white">
+                <div class="modal-header bg-warning text-white">
                     <h5 class="modal-title">
-                        <i class="fas fa-check-circle me-2"></i>Marquer comme payé
+                        <i class="fas fa-hourglass-start me-2"></i>Processus de validation du paiement
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <form id="markAsPaidForm" method="POST">
+                <form id="paymentForm" method="POST" enctype="multipart/form-data">
                     @csrf
-                    @method('PUT')
                     <div class="modal-body">
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Nouveau processus :</strong> Ce paiement sera mis en attente de validation et devra passer par 4 étapes :
+                            <br><small class="mt-2 d-block">
+                                1️⃣ <strong>Caissier</strong> : Vérification du montant et du justificatif<br>
+                                2️⃣ <strong>Responsable</strong> : Validation du paiement<br>
+                                3️⃣ <strong>Administrateur</strong> : Validation finale<br>
+                                4️⃣ <strong>Complété</strong> : Échéance automatiquement marquée comme payée
+                            </small>
+                        </div>
+                        
                         <div class="alert alert-info">
                             <i class="fas fa-info-circle me-2"></i>
-                            <strong>Important :</strong> Cette action marquera définitivement cette échéance comme payée.
+                            <strong>Client:</strong> <span id="clientNameInModal"></span><br>
+                            <strong>Montant total en attente:</strong> <span id="pendingAmountInModal" class="fw-bold"></span> FCFA
                         </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Montant reçu (FCFA)</label>
+                                    <input type="number" name="amount" class="form-control" required min="0" step="100" 
+                                           placeholder="Ex: 500000" id="paymentAmount">
+                                    <div class="form-text">Ce montant sera validé par le caissier lors de la première étape</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Méthode de paiement</label>
+                                    <select name="payment_method" class="form-select" required>
+                                        <option value="">Sélectionner la méthode...</option>
+                                        <option value="especes">Espèces</option>
+                                        <option value="cheque">Chèque</option>
+                                        <option value="virement">Virement bancaire</option>
+                                        <option value="mobile_money">Mobile Money</option>
+                                        <option value="carte">Carte bancaire</option>
+                                        <option value="autre">Autre</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <div class="mb-3">
-                            <label class="form-label fw-bold">Montant reçu (FCFA)</label>
-                            <input type="number" name="amount" class="form-control" required min="0" step="100" 
-                                   placeholder="Ex: 500000">
-                            <div class="form-text">Confirmez le montant exact reçu</div>
+                            <label class="form-label fw-bold">Justificatif de paiement (Optionnel)</label>
+                            <input type="file" name="payment_proof" class="form-control" 
+                                   accept=".pdf,.jpg,.jpeg,.png" title="Formats acceptés: PDF, JPG, PNG">
+                            <div class="form-text">Vous pouvez ajouter un justificatif maintenant ou le caissier le demandera plus tard</div>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">Méthode de paiement</label>
-                            <select name="payment_method" class="form-select" required>
-                                <option value="">Sélectionner la méthode...</option>
-                                <option value="especes">Espèces</option>
-                                <option value="cheque">Chèque</option>
-                                <option value="virement">Virement bancaire</option>
-                                <option value="mobile_money">Mobile Money</option>
-                                <option value="carte">Carte bancaire</option>
-                                <option value="autre">Autre</option>
-                            </select>
-                        </div>
+                        
                         <div class="mb-3">
                             <label class="form-label fw-bold">Notes/Observations</label>
                             <textarea name="notes" class="form-control" rows="3" 
-                                      placeholder="Observations, commentaires, références..."></textarea>
+                                      placeholder="Détails sur le paiement, référence de transaction, etc."></textarea>
+                        </div>
+                        
+                        <div class="alert alert-success">
+                            <i class="fas fa-shield-alt me-2"></i>
+                            <strong>Sécurité :</strong> Ce système garantit la traçabilité et la validation à plusieurs niveaux pour tous les paiements.
+                            Le client sera informé à chaque étape du processus.
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                             <i class="fas fa-times me-1"></i>Annuler
                         </button>
-                        <button type="submit" class="btn btn-success">
-                            <i class="fas fa-check me-1"></i>Confirmer le paiement
+                        <button type="submit" class="btn btn-warning text-white">
+                            <i class="fas fa-hourglass-start me-1"></i>Démarrer la Validation
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal pour l'historique des paiements -->
+    <div class="modal fade" id="paymentHistoryModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-history me-2"></i>Historique des Paiements
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0"><strong>Client:</strong> <span id="historyClientName"></span></h6>
+                        <button class="btn btn-outline-success btn-sm" onclick="refreshPaymentHistory()">
+                            <i class="fas fa-refresh me-1"></i>Actualiser
+                        </button>
+                    </div>
+                    
+                    <div id="paymentHistoryContent">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Chargement...</span>
+                            </div>
+                            <p class="mt-2 text-muted">Chargement de l'historique...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Fermer
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -391,11 +459,133 @@
             }
         });
 
-        function markAsPaid(scheduleId) {
-            const modal = new bootstrap.Modal(document.getElementById('markAsPaidModal'));
-            const form = document.getElementById('markAsPaidForm');
-            form.action = `/payment-schedules/${scheduleId}/pay`;
+        let currentClientId = null;
+
+        function showPaymentModal(clientId, clientName, pendingAmount) {
+            currentClientId = clientId;
+            document.getElementById('clientNameInModal').textContent = clientName;
+            document.getElementById('pendingAmountInModal').textContent = new Intl.NumberFormat('fr-FR').format(pendingAmount);
+            
+            const modal = new bootstrap.Modal(document.getElementById('paymentModal'));
+            const form = document.getElementById('paymentForm');
+            form.action = `/clients/${clientId}/payment`;
+            
+            // Réinitialiser le formulaire
+            form.reset();
+            
             modal.show();
+        }
+
+        function showPaymentHistory(clientId, clientName) {
+            currentClientId = clientId;
+            document.getElementById('historyClientName').textContent = clientName;
+            
+            const modal = new bootstrap.Modal(document.getElementById('paymentHistoryModal'));
+            modal.show();
+            
+            // Charger l'historique
+            loadPaymentHistory(clientId);
+        }
+
+        function loadPaymentHistory(clientId) {
+            const content = document.getElementById('paymentHistoryContent');
+            content.innerHTML = `
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Chargement...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Chargement de l'historique...</p>
+                </div>
+            `;
+
+            fetch(`/clients/${clientId}/payment-history`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.payments && data.payments.length > 0) {
+                        let historyHtml = `
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Montant</th>
+                                            <th>Méthode</th>
+                                            <th>Statut</th>
+                                            <th>Référence</th>
+                                            <th>Notes</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                        `;
+                        
+                        data.payments.forEach(payment => {
+                            const statusBadge = getStatusBadge(payment.validation_status);
+                            historyHtml += `
+                                <tr>
+                                    <td>${formatDate(payment.payment_date)}</td>
+                                    <td class="fw-bold">${new Intl.NumberFormat('fr-FR').format(payment.amount)} F</td>
+                                    <td>${payment.payment_method || 'N/A'}</td>
+                                    <td>${statusBadge}</td>
+                                    <td><small class="text-muted">${payment.reference_number || 'N/A'}</small></td>
+                                    <td><small>${payment.notes || 'Aucune note'}</small></td>
+                                </tr>
+                            `;
+                        });
+                        
+                        historyHtml += `
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="alert alert-info mt-3">
+                                <strong>Total des paiements:</strong> ${new Intl.NumberFormat('fr-FR').format(data.total_paid)} F
+                            </div>
+                        `;
+                        
+                        content.innerHTML = historyHtml;
+                    } else {
+                        content.innerHTML = `
+                            <div class="text-center py-4">
+                                <i class="fas fa-receipt fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">Aucun paiement trouvé</h5>
+                                <p class="text-muted">Ce client n'a encore effectué aucun paiement.</p>
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    console.error('Erreur lors du chargement de l\'historique:', error);
+                    content.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Erreur lors du chargement de l'historique des paiements.
+                        </div>
+                    `;
+                });
+        }
+
+        function refreshPaymentHistory() {
+            if (currentClientId) {
+                loadPaymentHistory(currentClientId);
+            }
+        }
+
+        function getStatusBadge(status) {
+            const statusConfig = {
+                'pending': { class: 'bg-warning', text: 'En attente' },
+                'caissier_validated': { class: 'bg-info', text: 'Caissier validé' },
+                'responsable_validated': { class: 'bg-primary', text: 'Responsable validé' },
+                'admin_validated': { class: 'bg-success', text: 'Admin validé' },
+                'completed': { class: 'bg-success', text: 'Complété' },
+                'rejected': { class: 'bg-danger', text: 'Rejeté' }
+            };
+            
+            const config = statusConfig[status] || { class: 'bg-secondary', text: status };
+            return `<span class="badge ${config.class}">${config.text}</span>`;
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
         }
 
         function viewClientSchedules(clientId, clientName) {

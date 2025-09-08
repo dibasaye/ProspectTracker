@@ -112,15 +112,8 @@ class ReservationController extends Controller
                 ->with('error', "Le lot {$lotNumber} existe déjà mais n'est pas disponible (statut: {$lot->status}).");
         }
 
-        // Vérifier si ce prospect a déjà une réservation active
-        $existingReservation = Reservation::where('prospect_id', $prospect->id)
-            ->where('expires_at', '>', now())
-            ->first();
-
-        if ($existingReservation) {
-            return redirect()->back()
-                ->with('error', 'Ce prospect a déjà une réservation active.');
-        }
+        // Note: Suppression de la vérification unique car nous permettons maintenant 
+        // plusieurs réservations par prospect pour la sélection multiple
 
         // Créer la réservation
         Reservation::create([
@@ -143,43 +136,83 @@ class ReservationController extends Controller
     public function store(Request $request, Prospect $prospect)
 {
     $request->validate([
-        'lot_id' => 'required|exists:lots,id',
+        'lot_ids' => 'required|array|min:1',
+        'lot_ids.*' => 'required|exists:lots,id',
     ]);
 
-    $alreadyReserved = Reservation::where('lot_id', $request->lot_id)
-        ->where('expires_at', '>', now())
-        ->exists();
+    $lotIds = $request->lot_ids;
+    $errors = [];
+    $successCount = 0;
+    $reservedLots = [];
 
-    if ($alreadyReserved) {
-        return back()->with('error', 'Ce lot est déjà réservé.');
+    // Vérifier les lots déjà réservés
+    $alreadyReservedLots = Reservation::whereIn('lot_id', $lotIds)
+        ->where('expires_at', '>', now())
+        ->pluck('lot_id')
+        ->toArray();
+
+    if (!empty($alreadyReservedLots)) {
+        $lots = Lot::whereIn('id', $alreadyReservedLots)->pluck('lot_number', 'id');
+        foreach ($lots as $lotId => $lotNumber) {
+            $errors[] = "Le lot {$lotNumber} est déjà réservé.";
+        }
     }
 
-    $hasActiveReservation = Reservation::where('prospect_id', $prospect->id)
-        ->where('expires_at', '>', now())
-        ->exists();
+    // Traiter chaque lot non-réservé
+    $availableLotIds = array_diff($lotIds, $alreadyReservedLots);
+    
+    foreach ($availableLotIds as $lotId) {
+        try {
+            // Créer la réservation
+            Reservation::create([
+                'prospect_id' => $prospect->id,
+                'lot_id' => $lotId,
+                'reserved_at' => now(),
+                'expires_at' => now()->addDays(3), // Réservation valable 3 jours
+            ]);
 
-    if ($hasActiveReservation) {
-        return back()->with('error', 'Ce prospect a déjà une réservation active.');
+            // Mettre à jour le statut du lot
+            $lot = Lot::find($lotId);
+            $lot->update(['status' => 'reserve']);
+            
+            $reservedLots[] = $lot->lot_number;
+            $successCount++;
+        } catch (\Exception $e) {
+            $lot = Lot::find($lotId);
+            $errors[] = "Erreur lors de la réservation du lot {$lot->lot_number}: " . $e->getMessage();
+        }
     }
 
-    Reservation::create([
-        'prospect_id' => $prospect->id,
-        'lot_id' => $request->lot_id,
-        'reserved_at' => now(),
-        'expires_at' => now()->addDays(3), // Réservation valable 3 jours
-    ]);
+    // Mettre à jour le statut du prospect si au moins une réservation a été créée
+    if ($successCount > 0) {
+        // Utiliser le premier lot réservé pour déterminer le site d'intérêt
+        $firstReservedLot = Lot::find($availableLotIds[0]);
+        $prospect->update([
+            'status' => 'interesse',
+            'interested_site_id' => $firstReservedLot->site_id
+        ]);
+    }
 
-    // Mettre à jour le lot
-    $lot = Lot::find($request->lot_id);
-    $lot->update(['status' => 'reserve']);
+    // Préparer les messages de retour
+    $messages = [];
+    
+    if ($successCount > 0) {
+        if ($successCount === 1) {
+            $messages['success'] = "Le lot {$reservedLots[0]} a été réservé avec succès.";
+        } else {
+            $messages['success'] = "{$successCount} lots ont été réservés avec succès : " . implode(', ', $reservedLots) . ".";
+        }
+    }
+    
+    if (!empty($errors)) {
+        $messages['error'] = implode('<br>', $errors);
+    }
+    
+    if ($successCount === 0 && !empty($errors)) {
+        return back()->withErrors($messages);
+    }
 
-    // Mettre à jour le statut du prospect et son site d'intérêt
-    $prospect->update([
-        'status' => 'interesse',
-        'interested_site_id' => $lot->site_id
-    ]);
-
-    return redirect()->route('prospects.show', $prospect)->with('success', 'Lot réservé avec succès.');
+    return redirect()->route('prospects.show', $prospect)->with($messages);
 }
 
 }

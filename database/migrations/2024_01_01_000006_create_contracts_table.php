@@ -13,7 +13,7 @@ return new class extends Migration
             $table->string('contract_number')->unique();
             $table->unsignedBigInteger('client_id');
             $table->unsignedBigInteger('site_id');
-            $table->unsignedBigInteger('lot_id');
+            $table->unsignedBigInteger('lot_id')->nullable(); // Peut être null pour les contrats groupés
             $table->enum('status', ['brouillon', 'genere', 'signe', 'archive'])->default('brouillon');
             $table->decimal('total_amount', 15, 2);
             $table->decimal('paid_amount', 15, 2)->default(0);
@@ -34,7 +34,7 @@ return new class extends Migration
 
             $table->foreign('client_id')->references('id')->on('prospects')->onDelete('cascade');
             $table->foreign('site_id')->references('id')->on('sites')->onDelete('cascade');
-            $table->foreign('lot_id')->references('id')->on('lots')->onDelete('cascade');
+            $table->foreign('lot_id')->references('id')->on('lots')->onDelete('set null');
             $table->foreign('generated_by')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('signed_by_client')->references('id')->on('prospects')->onDelete('set null');
             $table->foreign('signed_by_agent')->references('id')->on('users')->onDelete('set null');

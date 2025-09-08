@@ -26,17 +26,22 @@
 
     if (auth()->user()->isManager() || auth()->user()->isAdmin()) {
         $nav[] = ['route' => 'payments.validation.index', 'icon' => 'check-circle', 'label' => 'Validation Paiements'];
+        $nav[] = ['route' => 'receipts.index', 'icon' => 'receipt', 'label' => 'Bordereaux'];
+        $nav[] = ['route' => 'cash.index', 'icon' => 'cash-register', 'label' => 'Gestion Caisse'];
         $nav[] = ['route' => 'commercial.performance', 'icon' => 'chart-line', 'label' => 'Performance Commerciaux'];
-
-
-
     }
 
+    // Caissiers et responsables commerciaux ont accès à la gestion de caisse
+    if (auth()->user()->isCaissier() || auth()->user()->role === 'responsable_commercial') {
+        $nav[] = ['route' => 'cash.index', 'icon' => 'cash-register', 'label' => 'Gestion Caisse'];
+    }
 
     if (auth()->user()->isCaissier()) {
-    // Le caissier ne voit QUE la validation des paiements
+    // Le caissier voit la validation des paiements et les bordereaux
     $nav = [
-        ['route' => 'payments.validation.index', 'icon' => 'check-circle', 'label' => 'Validation Paiements']
+        ['route' => 'payments.validation.index', 'icon' => 'check-circle', 'label' => 'Validation Paiements'],
+        ['route' => 'receipts.index', 'icon' => 'receipt', 'label' => 'Bordereaux'],
+        ['route' => 'cash.index', 'icon' => 'cash-register', 'label' => 'Gestion Caisse']
     ];
 }
 

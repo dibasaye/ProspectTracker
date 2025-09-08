@@ -9,11 +9,13 @@ use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\LotController;
 use App\Http\Controllers\Admin\UserController;
-
+use App\Http\Controllers\CashTransactionController;
 use App\Http\Controllers\ContractController;
 use App\Http\Controllers\PaymentScheduleController;
 use App\Http\Controllers\PaymentValidationController;
 use App\Http\Controllers\CommercialPerformanceController;
+use App\Http\Controllers\LotManagementController;
+use App\Http\Controllers\PaymentReceiptController;
 use App\Http\Controllers\ReportController;
 
 
@@ -95,6 +97,11 @@ Route::post('/prospects/store-bulk', [ProspectController::class, 'storeBulk'])->
     // Site management routes
     Route::resource('sites', SiteController::class);
     Route::get('/sites/{site}/lots', [SiteController::class, 'lots'])->name('sites.lots');
+    
+    // Routes pour gestion en masse des lots
+    Route::get('/sites/{site}/lots/bulk-create', [LotManagementController::class, 'bulkCreate'])->name('sites.lots.bulk-create');
+    Route::post('/sites/{site}/lots/bulk-store', [LotManagementController::class, 'bulkStore'])->name('sites.lots.bulk-store');
+    Route::post('/sites/{site}/lots/bulk-update-position', [LotManagementController::class, 'bulkUpdatePosition'])->name('sites.lots.bulk-update-position');
 
     // Payment management routes
 
@@ -129,6 +136,21 @@ Route::post('/prospects/store-bulk', [ProspectController::class, 'storeBulk'])->
     
     Route::get('/prospects/conversion-stats', [ProspectController::class, 'conversionStats'])
     ->name('prospects.conversion-stats');
+    
+    // Bordereau management routes
+    Route::prefix('receipts')->name('receipts.')->group(function() {
+        Route::get('/', [PaymentReceiptController::class, 'index'])->name('index');
+        Route::get('/create-daily', [PaymentReceiptController::class, 'createDaily'])->name('create-daily');
+        Route::post('/store-daily', [PaymentReceiptController::class, 'storeDaily'])->name('store-daily');
+        Route::get('/create-period', [PaymentReceiptController::class, 'createPeriod'])->name('create-period');
+        Route::post('/store-period', [PaymentReceiptController::class, 'storePeriod'])->name('store-period');
+        Route::get('/{receipt}', [PaymentReceiptController::class, 'show'])->name('show');
+        Route::post('/{receipt}/finalize', [PaymentReceiptController::class, 'finalize'])->name('finalize');
+        Route::get('/{receipt}/pdf', [PaymentReceiptController::class, 'generatePdf'])->name('pdf');
+        Route::delete('/{receipt}', [PaymentReceiptController::class, 'destroy'])->name('destroy');
+        Route::get('/api/payments-by-period', [PaymentReceiptController::class, 'getPaymentsByPeriod'])->name('api.payments-by-period');
+    });
+    
     // Contract management routes
 
     Route::get('prospects/{prospect}/generate-contract', [ContractController::class, 'generateFromReservation'])->name('contracts.generate');
@@ -147,6 +169,10 @@ Route::post('/prospects/store-bulk', [ProspectController::class, 'storeBulk'])->
     Route::get('/payment-schedules/{schedule}/receipt', [PaymentScheduleController::class, 'downloadReceipt'])->name('schedules.receipt');
     Route::get('/payment-schedules/export', [PaymentScheduleController::class, 'export'])->name('payment-schedules.export');
     Route::get('/clients/{client}/payment-schedules', [PaymentScheduleController::class, 'clientSchedules'])->name('clients.payment-schedules');
+    
+    // Nouvelles routes pour les versements et l'historique
+    Route::post('/clients/{client}/payment', [PaymentScheduleController::class, 'makeClientPayment'])->name('clients.payment');
+    Route::get('/clients/{client}/payment-history', [PaymentScheduleController::class, 'getClientPaymentHistory'])->name('clients.payment-history');
 
 
 
@@ -225,6 +251,32 @@ Route::post('/sites/{site}/lots', [LotController::class, 'store'])->name('lots.s
     Route::get('contracts/{contract}/word', [ContractController::class, 'exportWord'])->name('contracts.export.word');
     Route::post('contracts/{contract}/upload-signed', [ContractController::class, 'uploadSignedCopy'])->name('contracts.upload-signed');
     Route::post('contracts/{contract}/sign', [ContractController::class, 'signContract'])->name('contracts.sign');
+    
+    // Contract editing routes (super admin only)
+    Route::post('contracts/{contract}/update-content', [ContractController::class, 'updateContent'])->name('contracts.update-content');
+    Route::post('contracts/{contract}/validate', [ContractController::class, 'validateContract'])->name('contracts.validate');
+
+    // Routes pour la gestion de la caisse (Cashier management)
+    Route::prefix('cash')->name('cash.')->group(function() {
+        Route::get('/', [App\Http\Controllers\CashTransactionController::class, 'index'])->name('index');
+        Route::get('/show/{transaction}', [App\Http\Controllers\CashTransactionController::class, 'show'])->name('show');
+        
+        // Encaissements (Income)
+        Route::get('/encaissement/create', [App\Http\Controllers\CashTransactionController::class, 'createEncaissement'])->name('encaissement.create');
+        Route::post('/encaissement', [App\Http\Controllers\CashTransactionController::class, 'storeEncaissement'])->name('encaissement.store');
+        
+        // Décaissements (Expenses)
+        Route::get('/decaissement/create', [App\Http\Controllers\CashTransactionController::class, 'createDecaissement'])->name('decaissement.create');
+        Route::post('/decaissement', [App\Http\Controllers\CashTransactionController::class, 'storeDecaissement'])->name('decaissement.store');
+        
+        // Validation/Actions
+        Route::post('/{transaction}/validate', [App\Http\Controllers\CashTransactionController::class, 'validateTransaction'])->name('validate');
+        Route::post('/{transaction}/cancel', [App\Http\Controllers\CashTransactionController::class, 'cancel'])->name('cancel');
+        
+        // Rapports
+        Route::get('/rapport', [App\Http\Controllers\CashTransactionController::class, 'rapport'])->name('rapport');
+        Route::get('/export', [App\Http\Controllers\CashTransactionController::class, 'export'])->name('export');
+    });
 });
 
 
