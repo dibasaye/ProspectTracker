@@ -63,12 +63,6 @@
                         </div>
                         
                         <div class="col-md-2">
-                            <label for="base_price" class="form-label fw-bold">Prix de Base</label>
-                            <input type="number" class="form-control" id="base_price" name="base_price" required 
-                                   min="0" placeholder="Ex: 5000000">
-                        </div>
-                        
-                        <div class="col-md-2">
                             <label for="position" class="form-label fw-bold">Position</label>
                             <select class="form-select" id="position" name="position" required>
                                 <option value="">Choisir...</option>
@@ -76,6 +70,13 @@
                                 <option value="facade">Façade</option>
                                 <option value="angle">Angle</option>
                             </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="base_price" class="form-label fw-bold">Prix de Base</label>
+                            <input type="number" class="form-control" id="base_price" name="base_price" required 
+                                   min="0" placeholder="Ex: 5000000" readonly>
+                            <small class="text-muted" id="price-info">Prix auto selon position</small>
                         </div>
                         
                         <div class="col-md-2 d-flex align-items-end">
@@ -151,11 +152,19 @@
                                 <div class="card-body p-3 text-center">
                                     <div class="d-flex justify-content-between align-items-start mb-2">
                                         <h6 class="mb-0">{{ $lot->lot_number }}</h6>
-                                        @if($lot->position === 'angle')
-                                            <i class="fas fa-crown text-warning" title="Lot en angle"></i>
-                                        @elseif($lot->position === 'facade')
-                                            <i class="fas fa-star text-info" title="Lot en façade"></i>
-                                        @endif
+                                        <div>
+                                            @if($lot->position === 'angle')
+                                                <i class="fas fa-crown text-warning" title="Lot en angle"></i>
+                                            @elseif($lot->position === 'facade')
+                                                <i class="fas fa-star text-info" title="Lot en façade"></i>
+                                            @endif
+                                            <!-- Bouton Modifier (Admin et Responsable Commercial seulement) -->
+                                            @if(auth()->check() && (auth()->user()->isAdmin() || auth()->user()->role === 'responsable_commercial'))
+                                                <a href="{{ route('sites.lots.edit', ['site' => $site->id, 'lot' => $lot->id]) }}" class="btn btn-sm btn-outline-primary ms-1" title="Modifier le lot">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                            @endif
+                                        </div>
                                     </div>
 
                                     <div class="mb-2">
@@ -381,26 +390,31 @@
                     const lotNumberInput = document.getElementById('lot_number');
                     const basePriceInput = document.getElementById('base_price');
                     const positionSelect = document.getElementById('position');
+                    const priceInfo = document.getElementById('price-info');
 
-                    // Auto-calcul du prix final basé sur la position
-                    function updateFinalPrice() {
-                        const basePrice = parseFloat(basePriceInput.value) || 0;
+                    // Prix par défaut selon la position (récupérés du site)
+                    const sitePrices = {
+                        'interieur': {{ $site->price_interieur ?? 0 }},
+                        'facade': {{ $site->price_facade ?? 0 }},
+                        'angle': {{ $site->price_angle ?? 0 }}
+                    };
+
+                    // Auto-remplissage du prix selon la position
+                    function updatePriceByPosition() {
                         const position = positionSelect.value;
-                        let finalPrice = basePrice;
-
-                        if (position === 'facade' || position === 'angle') {
-                            finalPrice = basePrice * 1.10; // +10% pour façade et angle
-                        }
-
-                        // Afficher le prix calculé (optionnel)
-                        const priceDisplay = document.getElementById('priceDisplay');
-                        if (priceDisplay) {
-                            priceDisplay.textContent = `Prix final estimé: ${finalPrice.toLocaleString()} FCFA`;
+                        
+                        if (position && sitePrices[position] > 0) {
+                            basePriceInput.value = sitePrices[position];
+                            priceInfo.textContent = `Prix ${position} appliqué`;
+                            priceInfo.className = 'text-success';
+                        } else {
+                            basePriceInput.value = '';
+                            priceInfo.textContent = 'Sélectionnez une position';
+                            priceInfo.className = 'text-muted';
                         }
                     }
 
-                    basePriceInput.addEventListener('input', updateFinalPrice);
-                    positionSelect.addEventListener('change', updateFinalPrice);
+                    positionSelect.addEventListener('change', updatePriceByPosition);
 
                     // Validation du formulaire
                     quickReserveForm.addEventListener('submit', function(e) {

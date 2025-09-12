@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Site;
 use App\Models\Lot;
-use App\Models\Prospect; // Assurez-vous que le modèle Prospect est correctement importé
+use App\Models\Prospect;
 use App\Models\Contract;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 
 class SiteController extends Controller
 {
@@ -23,76 +25,98 @@ class SiteController extends Controller
         return view('sites.create');
     }
     
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            // Informations de base
-            'name' => 'required|string|max:255',
-            'location' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'total_area' => 'nullable|numeric|min:0',
-            'total_lots' => 'required|integer|min:0',
-            'latitude' => 'nullable|numeric',
-            'longitude' => 'nullable|numeric',
-            'image_file' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
-            
-            // Prix fixes par position
-            'angle_price' => 'required|numeric|min:0',
-            'facade_price' => 'required|numeric|min:0',
-            'interior_price' => 'required|numeric|min:0',
-            
-            // Frais
-            'reservation_fee' => 'required|numeric|min:0',
-            'membership_fee' => 'required|numeric|min:0',
-            
-            // Prix pour les options de paiement
-            'one_year_price' => 'nullable|numeric|min:0',
-            'two_years_price' => 'nullable|numeric|min:0',
-            'three_years_price' => 'nullable|numeric|min:0',
-            
-            // Anciens champs pour rétrocompatibilité
-            'price_12_months' => 'nullable|numeric',
-            'price_24_months' => 'nullable|numeric',
-            'price_36_months' => 'nullable|numeric',
-            'price_cash' => 'nullable|numeric',
+   public function store(Request $request)
+{
+    $validated = $request->validate([
+        'name' => 'required|string|max:255',
+        'location' => 'required|string|max:255',
+        'description' => 'nullable|string',
+        'total_area' => 'nullable|numeric|min:0',
+        'total_lots' => 'required|integer|min:0',
+        'latitude' => 'nullable|numeric',
+        'longitude' => 'nullable|numeric',
+        'image_file' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
+        
+        // Prix du formulaire
+        'price_angle' => 'required|numeric|min:0',
+        'price_facade' => 'required|numeric|min:0',
+        'price_interieur' => 'required|numeric|min:0',
+        
+        // Frais
+        'reservation_fee' => 'required|numeric|min:0',
+        'membership_fee' => 'required|numeric|min:0',
     ]);
 
-    // Enregistrer le plan de lotissement si présent
-    if ($request->hasFile('image_file')) {
-        $path = $request->file('image_file')->store('sites', 'public');
-        $validated['image_url'] = $path;
-    }
-
-    // ✅ Gérer les cases cochées
-    $validated['enable_12'] = $request->has('enable_12');
-    $validated['enable_24'] = $request->has('enable_24');
-    $validated['enable_cash'] = $request->has('enable_cash');
-    $validated['enable_36'] = $request->has('enable_36');
-
-    $site = Site::create($validated);
-
-    return redirect()->route('sites.show', $site)->with('success', 'Site créé avec succès.');
-}
-
-    
-    public function show(Site $site)
-{
-    $site->load(['lots', 'prospects', 'contracts']);
-
-    $stats = [
-        'total_lots' => $site->lots()->count(),
-        'available_lots' => $site->availableLots()->count(),
-        'reserved_lots' => $site->reservedLots()->count(),
-        'sold_lots' => $site->soldLots()->count(),
-        'total_prospects' => $site->prospects()->count(),
-        'total_revenue' => $site->payments()->confirmed()->sum('amount'),
+    // Mapper les données vers les noms des colonnes de la base de données
+    $siteData = [
+        'name' => $validated['name'],
+        'location' => $validated['location'],
+        'description' => $validated['description'] ?? null,
+        'total_area' => $validated['total_area'] ?? null,
+        'total_lots' => $validated['total_lots'],
+        'latitude' => $validated['latitude'] ?? null,
+        'longitude' => $validated['longitude'] ?? null,
+        
+        // CORRECTION : Utiliser les vrais noms des colonnes DB
+        'angle_price' => $validated['price_angle'],
+        'facade_price' => $validated['price_facade'],      // ✅ Maintenant inclus
+        'interior_price' => $validated['price_interieur'], // ✅ Maintenant inclus
+        
+        'reservation_fee' => $validated['reservation_fee'],
+        'membership_fee' => $validated['membership_fee'],
+        
+        // Cases à cocher
+        'enable_payment_cash' => $request->has('enable_payment_cash') ? 1 : 0,
+        'enable_payment_1_year' => $request->has('enable_payment_1_year') ? 1 : 0,
+        'enable_payment_2_years' => $request->has('enable_payment_2_years') ? 1 : 0,
+        'enable_payment_3_years' => $request->has('enable_payment_3_years') ? 1 : 0,
+        
+        // Colonnes avec valeurs par défaut
+        'status' => 'active',
+        'is_active' => 1,
+        'payment_plan' => '24_months',
     ];
 
-    // ✅ Déterminer si le fichier est un PDF
-    $isPdf = $site->image_url ? Str::endsWith($site->image_url, '.pdf') : false;
+    // Gestion du fichier image
+    if ($request->hasFile('image_file')) {
+        $path = $request->file('image_file')->store('sites', 'public');
+        $siteData['image_url'] = $path;
+    }
 
-    return view('sites.show', compact('site', 'stats', 'isPdf'));
+    try {
+        $site = Site::create($siteData);
+
+        return redirect()->route('sites.show', $site)
+            ->with('success', 'Site créé avec succès.');
+
+    } catch (\Exception $e) {
+        \Log::error('Erreur création site : ' . $e->getMessage());
+        \Log::error('Data envoyée : ' . json_encode($siteData));
+        
+        return redirect()->back()
+            ->with('error', 'Erreur lors de la création : ' . $e->getMessage())
+            ->withInput();
+    }
 }
+    
+    public function show(Site $site)
+    {
+        $site->load(['lots', 'prospects', 'contracts']);
+
+        $stats = [
+            'total_lots' => $site->lots()->count(),
+            'available_lots' => $site->availableLots()->count(),
+            'reserved_lots' => $site->reservedLots()->count(),
+            'sold_lots' => $site->soldLots()->count(),
+            'total_prospects' => $site->prospects()->count(),
+            'total_revenue' => $site->payments()->confirmed()->sum('amount'),
+        ];
+
+        // Déterminer si le fichier est un PDF
+        $isPdf = $site->image_url ? Str::endsWith($site->image_url, '.pdf') : false;
+
+        return view('sites.show', compact('site', 'stats', 'isPdf'));
+    }
     
     public function edit(Site $site)
     {
@@ -100,146 +124,60 @@ class SiteController extends Controller
     }
     
     public function update(Request $request, Site $site)
-    {
-        // Valider les données du formulaire
-        $validated = $request->validate([
-            // Informations de base
-            'name' => 'required|string|max:255',
-            'location' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'total_area' => 'nullable|numeric|min:0',
-            
-            // Prix fixes par position
-            'angle_price' => 'required|numeric|min:0',
-            'facade_price' => 'required|numeric|min:0',
-            'interior_price' => 'required|numeric|min:0',
-            
-            // Frais
-            'reservation_fee' => 'required|numeric|min:0',
-            'membership_fee' => 'required|numeric|min:0',
-            
-            // Prix pour les options de paiement
-            'one_year_price' => 'nullable|numeric|min:0',
-            'two_years_price' => 'nullable|numeric|min:0',
-            'three_years_price' => 'nullable|numeric|min:0',
-            'payment_plan' => 'nullable|in:12_months,24_months,36_months',
-            'amenities' => 'nullable|array',
-            'latitude' => 'nullable|numeric',
-            'longitude' => 'nullable|numeric',
-            'is_active' => 'sometimes|boolean',
-            'image_file' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
-            
-            // Anciens champs pour rétrocompatibilité
-            'price_12_months' => 'nullable|numeric',
-            'price_24_months' => 'nullable|numeric',
-            'price_36_months' => 'nullable|numeric',
-            'price_cash' => 'nullable|numeric',
-        ]);
-        
-        // Gérer les cases à cocher
-        $validated['enable_12'] = $request->has('enable_12') ? 1 : 0;
-        $validated['enable_24'] = $request->has('enable_24') ? 1 : 0;
-        $validated['enable_36'] = $request->has('enable_36') ? 1 : 0;
-        $validated['enable_cash'] = $request->has('enable_cash') ? 1 : 0;
-        
-        // Gérer l'upload du fichier s'il est présent
-        if ($request->hasFile('image_file')) {
-            // Supprimer l'ancien fichier s'il existe
-            if ($site->image_url && Storage::disk('public')->exists($site->image_url)) {
-                Storage::disk('public')->delete($site->image_url);
-            }
-            
-            // Enregistrer le nouveau fichier
-            $path = $request->file('image_file')->store('sites', 'public');
-            $validated['image_url'] = $path;
-        }
-        
-        // Convertir les valeurs numériques
-        $validated['angle_price'] = (float) $validated['angle_price'];
-        $validated['facade_price'] = (float) $validated['facade_price'];
-        $validated['interior_price'] = (float) $validated['interior_price'];
-        $validated['reservation_fee'] = (float) $validated['reservation_fee'];
-        $validated['membership_fee'] = (float) $validated['membership_fee'];
-        
-        if (isset($validated['one_year_price'])) {
-            $validated['one_year_price'] = (float) $validated['one_year_price'];
-        }
-        if (isset($validated['two_years_price'])) {
-            $validated['two_years_price'] = (float) $validated['two_years_price'];
-        }
-        if (isset($validated['three_years_price'])) {
-            $validated['three_years_price'] = (float) $validated['three_years_price'];
-        }
-        
-        // Mettre à jour le site
-        try {
-            $site->update($validated);
-            return redirect()->route('sites.show', $site)->with('success', 'Site mis à jour avec succès.');
-        } catch (\Exception $e) {
-            // En cas d'erreur, rediriger avec un message d'erreur
-            return redirect()->back()
-                ->with('error', 'Une erreur est survenue lors de la mise à jour du site: ' . $e->getMessage())
-                ->withInput();
-        }
-    }
-    
-    public function destroy(Site $site)
-    {
-        $site->delete();
-        
-        return redirect()->route('sites.index')->with('success', 'Site supprimé avec succès.');
-    }
-    
-   public function lots(Site $site)
 {
+    $validated = $request->validate([
+        'name' => 'required|string|max:255',
+        'location' => 'required|string|max:255',
+        'description' => 'nullable|string',
+        'total_area' => 'nullable|numeric|min:0',
+        'total_lots' => 'required|integer|min:0',
+        'latitude' => 'nullable|numeric',
+        'longitude' => 'nullable|numeric',
+        'image_file' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
+        // Correction: utiliser les noms des champs du formulaire
+        'price_angle' => 'required|numeric|min:0',
+        'price_facade' => 'required|numeric|min:0',
+        'price_interieur' => 'required|numeric|min:0',
+        'reservation_fee' => 'required|numeric|min:0',
+        'membership_fee' => 'required|numeric|min:0',
+    ]);
+
+    $updateData = [
+        'name' => $validated['name'],
+        'location' => $validated['location'],
+        'description' => $validated['description'] ?? null,
+        'total_area' => $validated['total_area'] ?? null,
+        'total_lots' => $validated['total_lots'],
+        'latitude' => $validated['latitude'] ?? null,
+        'longitude' => $validated['longitude'] ?? null,
+        // Correction: mapper vers les noms de colonnes de la base de données
+        'angle_price' => $validated['price_angle'],
+        'facade_price' => $validated['price_facade'],
+        'interior_price' => $validated['price_interieur'],
+        'reservation_fee' => $validated['reservation_fee'],
+        'membership_fee' => $validated['membership_fee'],
+        'enable_payment_cash' => $request->has('enable_payment_cash') ? 1 : 0,
+        'enable_payment_1_year' => $request->has('enable_payment_1_year') ? 1 : 0,
+        'enable_payment_2_years' => $request->has('enable_payment_2_years') ? 1 : 0,
+        'enable_payment_3_years' => $request->has('enable_payment_3_years') ? 1 : 0,
+    ];
+
+    if ($request->hasFile('image_file')) {
+        if ($site->image_url && \Storage::disk('public')->exists($site->image_url)) {
+            \Storage::disk('public')->delete($site->image_url);
+        }
+        $path = $request->file('image_file')->store('sites', 'public');
+        $updateData['image_url'] = $path;
+    }
+
     try {
-        // Charger les réservations + prospects liés à chaque lot
-        $lots = $site->lots()
-            ->with([
-                'reservation' => function($query) {
-                    $query->with('prospect');
-                },
-                'contract' => function($query) {
-                    $query->with('client');
-                }
-            ])
-            ->orderBy('lot_number')
-            ->paginate(20);
-
-        $statusColors = [
-            'available' => '#28a745',      // vert
-            'temp_reserved' => '#ffc107',  // jaune/orange clair
-            'reserved' => '#fd7e14',       // orange foncé
-            'sold' => '#dc3545',           // rouge
-        ];
-
-        $statusLabels = [
-            'available' => 'Disponible',
-            'temp_reserved' => 'Réservation temporaire',
-            'reserved' => 'Réservé',
-            'sold' => 'Vendu',
-        ];
-
-        $lots->getCollection()->transform(function ($lot) use ($statusColors, $statusLabels) {
-            $lot->status_color = $statusColors[$lot->status] ?? '#6c757d'; // gris par défaut
-            $lot->status_label = $statusLabels[$lot->status] ?? ucfirst($lot->status);
-            return $lot;
-        });
-
-        $prospects = Prospect::orderBy('last_name')->get();
-
-        return view('sites.lots', compact('site', 'lots', 'prospects'));
-        
+        $site->update($updateData);
+        return redirect()->route('sites.show', $site->id)
+            ->with('success', 'Site modifié avec succès.');
     } catch (\Exception $e) {
-        \Log::error('Error in SiteController@lots', [
-            'site_id' => $site->id,
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ]);
-        
-        return redirect()->back()->with('error', 'Une erreur est survenue lors du chargement des lots. Veuillez réessayer.');
+        \Log::error('Erreur mise à jour site : ' . $e->getMessage());
+        return redirect()->back()->with('error', 'Erreur lors de la modification : ' . $e->getMessage())->withInput();
     }
 }
-
 
 }

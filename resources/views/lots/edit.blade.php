@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="header">
         <h2 class="h4 fw-bold">
-            <i class="fas fa-plus me-2"></i>Créer un Nouveau Lot - {{ $site->name }}
+            <i class="fas fa-edit me-2"></i>Modifier le Lot {{ $lot->lot_number }} - {{ $site->name }}
         </h2>
     </x-slot>
 
@@ -9,13 +9,15 @@
         <div class="col-lg-8">
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
-                    <form action="{{ route('lots.store', ['site' => $site->id]) }}" method="POST">
+                    <!-- CORRECTION ICI : sites.lots.update au lieu de lots.update -->
+                    <form action="{{ route('sites.lots.update', ['site' => $site->id, 'lot' => $lot->id]) }}" method="POST">
                         @csrf
+                        @method('PUT')
 
                         <!-- Numéro du lot -->
                         <div class="mb-3">
                             <label for="lot_number" class="form-label">Numéro du lot</label>
-                            <input type="text" name="lot_number" id="lot_number" class="form-control" value="{{ old('lot_number') }}" required>
+                            <input type="text" name="lot_number" id="lot_number" class="form-control" value="{{ old('lot_number', $lot->lot_number) }}" required>
                             @error('lot_number')
                                 <small class="text-danger">{{ $message }}</small>
                             @enderror
@@ -24,7 +26,7 @@
                         <!-- Superficie -->
                         <div class="mb-3">
                             <label for="area" class="form-label">Superficie (m²)</label>
-                            <input type="number" step="0.01" name="area" id="area" class="form-control" value="{{ old('area') }}" required>
+                            <input type="number" step="0.01" name="area" id="area" class="form-control" value="{{ old('area', $lot->area) }}" required>
                             @error('area')
                                 <small class="text-danger">{{ $message }}</small>
                             @enderror
@@ -35,9 +37,9 @@
                             <label for="position" class="form-label">Position</label>
                             <select name="position" id="position" class="form-select" required>
                                 <option value="">-- Choisir --</option>
-                                <option value="interieur" {{ old('position') == 'interieur' ? 'selected' : '' }}>Intérieur</option>
-                                <option value="facade" {{ old('position') == 'facade' ? 'selected' : '' }}>Façade (+10%)</option>
-                                <option value="angle" {{ old('position') == 'angle' ? 'selected' : '' }}>Angle (+10%)</option>
+                                <option value="interieur" {{ old('position', $lot->position) == 'interieur' ? 'selected' : '' }}>Intérieur</option>
+                                <option value="facade" {{ old('position', $lot->position) == 'facade' ? 'selected' : '' }}>Façade (+10%)</option>
+                                <option value="angle" {{ old('position', $lot->position) == 'angle' ? 'selected' : '' }}>Angle (+10%)</option>
                             </select>
                             @error('position')
                                 <small class="text-danger">{{ $message }}</small>
@@ -48,12 +50,12 @@
                         <div class="mb-3">
                             <label for="base_price" class="form-label">Prix de base (FCFA)</label>
                             <div class="input-group">
-                                <input type="number" step="0.01" name="base_price" id="base_price" class="form-control" value="{{ old('base_price') }}" required>
+                                <input type="number" step="0.01" name="base_price" id="base_price" class="form-control" value="{{ old('base_price', $lot->base_price) }}" required>
                                 <button type="button" class="btn btn-outline-secondary" id="reset-price" title="Réappliquer le prix automatique">
                                     <i class="fas fa-sync-alt"></i>
                                 </button>
                             </div>
-                            <small class="text-muted" id="price-info">Sélectionnez une position pour voir le prix</small>
+                            <small class="text-muted" id="price-info">Prix actuel: {{ number_format($lot->base_price, 0, ',', ' ') }} FCFA</small>
                             @error('base_price')
                                 <small class="text-danger">{{ $message }}</small>
                             @enderror
@@ -64,7 +66,7 @@
                             <label class="form-label">Prix final estimé (FCFA)</label>
                             <div class="alert alert-info py-2" id="final-price-display">
                                 <i class="fas fa-calculator me-2"></i>
-                                <span id="final-price-value">0</span> FCFA
+                                <span id="final-price-value">{{ number_format($lot->final_price, 0, ',', ' ') }}</span> FCFA
                                 <small class="ms-2" id="price-details"></small>
                             </div>
                         </div>
@@ -73,10 +75,10 @@
                         <div class="mb-3">
                             <label for="status" class="form-label">Statut du lot</label>
                             <select name="status" id="status" class="form-select" required>
-                                <option value="disponible" {{ old('status') == 'disponible' ? 'selected' : '' }}>Disponible</option>
-                                <option value="reserve_temporaire" {{ old('status') == 'reserve_temporaire' ? 'selected' : '' }}>Réservation temporaire</option>
-                                <option value="reserve" {{ old('status') == 'reserve' ? 'selected' : '' }}>Réservé</option>
-                                <option value="vendu" {{ old('status') == 'vendu' ? 'selected' : '' }}>Vendu</option>
+                                <option value="disponible" {{ old('status', $lot->status) == 'disponible' ? 'selected' : '' }}>Disponible</option>
+                                <option value="reserve_temporaire" {{ old('status', $lot->status) == 'reserve_temporaire' ? 'selected' : '' }}>Réservation temporaire</option>
+                                <option value="reserve" {{ old('status', $lot->status) == 'reserve' ? 'selected' : '' }}>Réservé</option>
+                                <option value="vendu" {{ old('status', $lot->status) == 'vendu' ? 'selected' : '' }}>Vendu</option>
                             </select>
                             @error('status')
                                 <small class="text-danger">{{ $message }}</small>
@@ -86,12 +88,12 @@
                         <!-- Description -->
                         <div class="mb-3">
                             <label for="description" class="form-label">Description (optionnelle)</label>
-                            <textarea name="description" id="description" rows="3" class="form-control">{{ old('description') }}</textarea>
+                            <textarea name="description" id="description" rows="3" class="form-control">{{ old('description', $lot->description) }}</textarea>
                         </div>
 
                         <div class="d-flex justify-content-end">
-                            <a href="{{ route('sites.show', $site) }}" class="btn btn-secondary me-2">Annuler</a>
-                            <button type="submit" class="btn btn-primary">Créer le lot</button>
+                            <a href="{{ route('sites.lots', $site) }}" class="btn btn-secondary me-2">Annuler</a>
+                            <button type="submit" class="btn btn-primary">Modifier le lot</button>
                         </div>
                     </form>
                 </div>
@@ -117,29 +119,7 @@
             const priceDetails = document.getElementById('price-details');
 
             let autoPriceApplied = false;
-            let lastSelectedPosition = '';
-
-            // Fonction pour mettre à jour le prix selon la position
-            function updatePriceByPosition() {
-                const position = positionSelect.value;
-                
-                if (position && sitePrices[position] > 0) {
-                    basePriceInput.value = sitePrices[position];
-                    priceInfo.textContent = `Prix ${position} appliqué automatiquement`;
-                    priceInfo.className = 'text-success';
-                    autoPriceApplied = true;
-                    lastSelectedPosition = position;
-                    
-                    // Calculer et afficher le prix final
-                    calculateFinalPrice();
-                } else {
-                    priceInfo.textContent = 'Sélectionnez une position';
-                    priceInfo.className = 'text-muted';
-                    autoPriceApplied = false;
-                    finalPriceValue.textContent = '0';
-                    priceDetails.textContent = '';
-                }
-            }
+            let lastSelectedPosition = '{{ $lot->position }}';
 
             // Fonction pour calculer le prix final avec majorations
             function calculateFinalPrice() {
@@ -159,15 +139,29 @@
                 priceDetails.textContent = details;
             }
 
+            // Fonction pour mettre à jour le prix selon la position
+            function updatePriceByPosition() {
+                const position = positionSelect.value;
+                
+                if (position && sitePrices[position] > 0) {
+                    basePriceInput.value = sitePrices[position];
+                    priceInfo.textContent = `Prix ${position} appliqué automatiquement`;
+                    priceInfo.className = 'text-success';
+                    autoPriceApplied = true;
+                    lastSelectedPosition = position;
+                    
+                    // Calculer et afficher le prix final
+                    calculateFinalPrice();
+                } else {
+                    priceInfo.textContent = 'Sélectionnez une position';
+                    priceInfo.className = 'text-muted';
+                    autoPriceApplied = false;
+                }
+            }
+
             // Événement changement de position
             positionSelect.addEventListener('change', function() {
-                // Si l'utilisateur n'a pas modifié manuellement le prix, on applique le prix auto
-                if (!basePriceInput.dataset.manualEdit) {
-                    updatePriceByPosition();
-                } else {
-                    // Même si modification manuelle, on recalcule le prix final
-                    calculateFinalPrice();
-                }
+                calculateFinalPrice();
             });
 
             // Événement modification manuelle du prix
@@ -195,10 +189,8 @@
                 }
             });
 
-            // Calcul initial si une position est déjà sélectionnée (en cas de validation échouée)
-            if (positionSelect.value) {
-                updatePriceByPosition();
-            }
+            // Calcul initial
+            calculateFinalPrice();
 
             // Validation du formulaire
             const form = document.querySelector('form');

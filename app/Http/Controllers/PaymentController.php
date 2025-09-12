@@ -122,5 +122,34 @@ public function myPayments()
     return view('payments.my_payments', compact('payments'));
 }
 
+    /**
+     * Génère une facture globale pour un client avec tous ses lots
+     */
+    public function globalInvoice(Prospect $prospect)
+    {
+        // Charger tous les lots du client avec leurs sites
+        $lots = $prospect->lots()->with('site')->get();
+
+        if ($lots->isEmpty()) {
+            return back()->with('error', 'Ce client n\'a aucun lot associé.');
+        }
+
+        // Calculer le total
+        $totalAmount = $lots->sum('final_price');
+
+        // Préparer les données pour la facture
+        $data = [
+            'prospect' => $prospect,
+            'lots' => $lots,
+            'totalAmount' => $totalAmount,
+            'invoiceNumber' => 'INV-' . str_pad($prospect->id, 4, '0', STR_PAD_LEFT),
+            'invoiceDate' => now()->format('d/m/Y'),
+        ];
+
+        // Générer le PDF
+        $pdf = PDF::loadView('prospects.global-invoice', $data);
+        
+        return $pdf->stream('facture-globale-' . $prospect->full_name . '.pdf');
+    }
 
 }

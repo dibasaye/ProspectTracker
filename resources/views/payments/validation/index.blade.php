@@ -403,242 +403,255 @@
         </div>
     </div>
 
-    @push('scripts')
-     <script>
-         document.addEventListener('DOMContentLoaded', function() {
-             window.showValidationModal = function(paymentId, reference, amount, paymentProofUrl = null) {
-                const paymentReferenceInput = document.getElementById('paymentReference');
-                const amountInput = document.getElementById('actual_amount_received');
-                const form = document.getElementById('validationForm');
-                const paymentProofPreview = document.getElementById('paymentProofPreview');
-                const downloadProofBtn = document.getElementById('downloadProofBtn');
-                const paymentProofSection = document.getElementById('paymentProofSection');
-                
-                // Réinitialiser le formulaire
-                if (form) form.reset();
-                
-                // Mettre à jour les champs de base
-                if (paymentReferenceInput) paymentReferenceInput.value = reference;
-                if (amountInput) amountInput.value = amount;
-                
-                // Mettre à jour l'action du formulaire avec l'ID du paiement
-                const isCaissier = {{ auth()->user()->isCaissier() ? 'true' : 'false' }};
-                if (form) {
-                    form.action = isCaissier 
-                        ? `/payments/${paymentId}/validate` 
-                        : `/payments/validation/${paymentId}/validate`;
-                }
-                
-                // Gestion du mode caissier vs manager
-                if (!isCaissier) {
-                    // Mode Manager - Afficher le justificatif du caissier
-                    if (paymentProofPreview) {
-                        if (paymentProofUrl && paymentProofUrl.trim() !== '') {
-                            // Afficher un indicateur de chargement
-                            paymentProofPreview.innerHTML = `
-                                <div class="text-center py-3">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">Chargement...</span>
-                                    </div>
-                                    <p class="mt-2">Chargement du justificatif...</p>
+   @push('scripts')
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        window.showValidationModal = function(paymentId, reference, amount, paymentProofUrl = null) {
+            const paymentReferenceInput = document.getElementById('paymentReference');
+            const amountInput = document.getElementById('actual_amount_received');
+            const form = document.getElementById('validationForm');
+            const paymentProofPreview = document.getElementById('paymentProofPreview');
+            const paymentProofSection = document.getElementById('paymentProofSection');
+            
+            // Réinitialiser le formulaire
+            if (form) form.reset();
+            
+            // Mettre à jour les champs de base
+            if (paymentReferenceInput) paymentReferenceInput.value = reference;
+            if (amountInput) amountInput.value = amount;
+            
+            // Mettre à jour l'action du formulaire avec l'ID du paiement
+            const isCaissier = {{ auth()->user()->isCaissier() ? 'true' : 'false' }};
+            if (form) {
+                form.action = isCaissier 
+                    ? `/payments/${paymentId}/validate` 
+                    : `/payments/validation/${paymentId}/validate`;
+            }
+            
+            // Gestion du mode caissier vs manager
+            if (!isCaissier) {
+                // Mode Manager - Afficher le justificatif du caissier
+                if (paymentProofPreview) {
+                    if (paymentProofUrl && paymentProofUrl.trim() !== '') {
+                        // Afficher un indicateur de chargement
+                        paymentProofPreview.innerHTML = `
+                            <div class="text-center py-3">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Chargement...</span>
                                 </div>
-                            `;
-                            
-                            // Charger l'aperçu du justificatif
-                            if (paymentProofUrl.match(/\.(jpe?g|png|gif)$/i)) {
-                                // Pour les images, afficher directement
-                                const img = new Image();
-                                img.onload = function() {
-                                    paymentProofPreview.innerHTML = `
-                                        <div class="d-flex justify-content-center">
-                                            <img src="${paymentProofUrl}" class="img-fluid rounded border" 
-                                                 style="max-height: 400px; max-width: 100%;" 
-                                                 alt="Justificatif de paiement">
-                                        </div>
-                                        <div class="mt-2 text-center">
-                                            <a href="${paymentProofUrl}" class="btn btn-sm btn-outline-primary" 
-                                               target="_blank" download>
-                                                <i class="fas fa-download me-1"></i>Télécharger l'image
-                                            </a>
-                                        </div>
-                                    `;
-                                };
-                                img.onerror = function() {
-                                    paymentProofPreview.innerHTML = `
-                                        <div class="alert alert-warning">
-                                            <i class="fas fa-exclamation-triangle me-2"></i>
-                                            Impossible de charger le justificatif.
-                                            <a href="${paymentProofUrl}" class="alert-link" target="_blank">
-                                                Essayer d'ouvrir dans un nouvel onglet
-                                            </a>
-                                        </div>
-                                    `;
-                                };
-                                img.src = paymentProofUrl;
-                            } else if (paymentProofUrl.match(/\.pdf$/i)) {
-                                // Pour les PDF, utiliser un iframe
+                                <p class="mt-2">Chargement du justificatif...</p>
+                            </div>
+                        `;
+                        
+                        // Charger l'aperçu du justificatif
+                        if (paymentProofUrl.match(/\.(jpe?g|png|gif)$/i)) {
+                            // Pour les images, afficher directement
+                            const img = new Image();
+                            img.onload = function() {
                                 paymentProofPreview.innerHTML = `
-                                    <div style="height: 500px;">
-                                        <iframe src="${paymentProofUrl}" 
-                                                class="w-100 h-100 border rounded" 
-                                                style="min-height: 400px;">
-                                        </iframe>
+                                    <div class="d-flex justify-content-center">
+                                        <img src="${paymentProofUrl}" class="img-fluid rounded border" 
+                                             style="max-height: 400px; max-width: 100%;" 
+                                             alt="Justificatif de paiement">
                                     </div>
                                     <div class="mt-2 text-center">
                                         <a href="${paymentProofUrl}" class="btn btn-sm btn-outline-primary" 
                                            target="_blank" download>
-                                            <i class="fas fa-download me-1"></i>Télécharger le document
+                                            <i class="fas fa-download me-1"></i>Télécharger l'image
                                         </a>
                                     </div>
                                 `;
-                            } else {
-                                // Pour les autres types de fichiers
+                            };
+                            img.onerror = function() {
                                 paymentProofPreview.innerHTML = `
-                                    <div class="alert alert-info">
-                                        <i class="fas fa-file-alt me-2"></i>
-                                        Fichier joint : 
-                                        <a href="${paymentProofUrl}" class="alert-link" target="_blank" download>
-                                            Télécharger le document
+                                    <div class="alert alert-warning">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>
+                                        Impossible de charger le justificatif.
+                                        <a href="${paymentProofUrl}" class="alert-link" target="_blank">
+                                            Essayer d'ouvrir dans un nouvel onglet
                                         </a>
                                     </div>
                                 `;
-                            }
-                        } else {
-                            // Aucun justificatif disponible
+                            };
+                            img.src = paymentProofUrl;
+                        } else if (paymentProofUrl.match(/\.pdf$/i)) {
+                            // Pour les PDF, utiliser un iframe
                             paymentProofPreview.innerHTML = `
-                                <div class="alert alert-warning">
-                                    <i class="fas fa-exclamation-circle me-2"></i>
-                                    Aucun justificatif disponible pour ce paiement.
+                                <div style="height: 500px;">
+                                    <iframe src="${paymentProofUrl}" 
+                                            class="w-100 h-100 border rounded" 
+                                            style="min-height: 400px;">
+                                    </iframe>
+                                </div>
+                                <div class="mt-2 text-center">
+                                    <a href="${paymentProofUrl}" class="btn btn-sm btn-outline-primary" 
+                                       target="_blank" download>
+                                        <i class="fas fa-download me-1"></i>Télécharger le document
+                                    </a>
+                                </div>
+                            `;
+                        } else {
+                            // Pour les autres types de fichiers
+                            paymentProofPreview.innerHTML = `
+                                <div class="alert alert-info">
+                                    <i class="fas fa-file-alt me-2"></i>
+                                    Fichier joint : 
+                                    <a href="${paymentProofUrl}" class="alert-link" target="_blank" download>
+                                        Télécharger le document
+                                    </a>
                                 </div>
                             `;
                         }
+                    } else {
+                        // Aucun justificatif disponible
+                        paymentProofPreview.innerHTML = `
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-circle me-2"></i>
+                                Aucun justificatif disponible pour ce paiement.
+                            </div>
+                        `;
                     }
-                } else if (paymentProofSection) {
-                    // Mode Caissier - Cacher la section du justificatif si elle existe
-                    paymentProofSection.classList.add('d-none');
                 }
-                
-                // Afficher le modal
-                const modalElement = document.getElementById('validationModal');
-                if (modalElement) {
-                    const modal = new bootstrap.Modal(modalElement);
-                    modal.show();
+            } else if (paymentProofSection) {
+                // Mode Caissier - Cacher la section du justificatif si elle existe
+                paymentProofSection.classList.add('d-none');
+            }
+            
+            // Afficher le modal
+            const modalElement = document.getElementById('validationModal');
+            if (modalElement) {
+                const modal = new bootstrap.Modal(modalElement);
+                modal.show();
+            }
+        };
+
+        window.showRejectionModal = function(paymentId, reference) {
+            const rejectionReferenceInput = document.getElementById('rejectionReference');
+            const form = document.getElementById('rejectionForm');
+            
+            // Réinitialiser le formulaire
+            if (form) form.reset();
+            
+            if (rejectionReferenceInput) rejectionReferenceInput.value = reference;
+            if (form) form.action = `/payments/validation/${paymentId}/reject`;
+            
+            const modal = new bootstrap.Modal(document.getElementById('rejectionModal'));
+            modal.show();
+        };
+
+        // Fonction simplifiée pour la validation admin (même structure que les autres)
+        window.showAdminValidationModal = function(paymentId, reference, paymentProofUrl = null) {
+            const modal = new bootstrap.Modal(document.getElementById('adminValidationModal'));
+            const form = document.getElementById('adminValidationForm');
+            const referenceInput = document.getElementById('adminPaymentReference');
+            const paymentProofPreview = document.getElementById('adminPaymentProofPreview');
+            const downloadProofBtn = document.getElementById('adminDownloadProofBtn');
+            
+            // Réinitialiser le formulaire
+            if (form) form.reset();
+            
+            // Mettre à jour les valeurs du formulaire
+            if (referenceInput) referenceInput.value = reference;
+            
+            // Mettre à jour l'action du formulaire
+            if (form) form.action = `/payments/validation/${paymentId}/admin`;
+            
+            // Afficher le justificatif de paiement s'il existe
+            if (paymentProofPreview) {
+                if (paymentProofUrl && paymentProofUrl.trim() !== '') {
+                    // Afficher un indicateur de chargement
+                    paymentProofPreview.innerHTML = `
+                        <div class="text-center py-3">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Chargement...</span>
+                            </div>
+                            <p class="mt-2 mb-0">Chargement du justificatif...</p>
+                        </div>`;
+                    
+                    // Vérifier le type de fichier et l'afficher appropriément
+                    if (paymentProofUrl.match(/\.(jpe?g|png|gif)$/i)) {
+                        // C'est une image
+                        const img = new Image();
+                        img.onload = function() {
+                            paymentProofPreview.innerHTML = `
+                                <div class="d-flex justify-content-center">
+                                    <img src="${paymentProofUrl}" class="img-fluid rounded border" 
+                                         style="max-height: 400px; max-width: 100%;" 
+                                         alt="Justificatif de paiement">
+                                </div>
+                                <p class="text-muted mt-2 mb-0 text-center">Justificatif fourni par le caissier</p>
+                            `;
+                            // Afficher le bouton de téléchargement
+                            if (downloadProofBtn) {
+                                downloadProofBtn.href = paymentProofUrl;
+                                downloadProofBtn.style.display = 'inline-block';
+                            }
+                        };
+                        
+                        img.onerror = function() {
+                            paymentProofPreview.innerHTML = `
+                                <div class="alert alert-warning mb-0">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    Impossible de charger l'image. 
+                                    <a href="${paymentProofUrl}" class="alert-link" target="_blank">
+                                        Ouvrir dans un nouvel onglet
+                                    </a>
+                                </div>
+                            `;
+                            if (downloadProofBtn) {
+                                downloadProofBtn.href = paymentProofUrl;
+                                downloadProofBtn.style.display = 'inline-block';
+                            }
+                        };
+                        
+                        img.src = paymentProofUrl;
+                    } else if (paymentProofUrl.match(/\.pdf$/i)) {
+                        // C'est un PDF
+                        paymentProofPreview.innerHTML = `
+                            <div style="height: 400px;">
+                                <iframe src="${paymentProofUrl}" 
+                                        class="w-100 h-100 border rounded" 
+                                        style="min-height: 300px;">
+                                </iframe>
+                            </div>
+                            <p class="text-muted mt-2 mb-0 text-center">Justificatif fourni par le caissier (PDF)</p>
+                        `;
+                        if (downloadProofBtn) {
+                            downloadProofBtn.href = paymentProofUrl;
+                            downloadProofBtn.style.display = 'inline-block';
+                        }
+                    } else {
+                        // Autre type de fichier
+                        paymentProofPreview.innerHTML = `
+                            <div class="text-center py-3">
+                                <i class="fas fa-file-alt fa-3x text-primary mb-2"></i>
+                                <p class="mb-1">Document de justificatif disponible</p>
+                                <p class="text-muted small mb-0">Format: ${paymentProofUrl.split('.').pop().toUpperCase()}</p>
+                            </div>
+                        `;
+                        if (downloadProofBtn) {
+                            downloadProofBtn.href = paymentProofUrl;
+                            downloadProofBtn.style.display = 'inline-block';
+                        }
+                    }
+                } else {
+                    // Aucun justificatif disponible
+                    paymentProofPreview.innerHTML = `
+                        <div class="alert alert-warning mb-0">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Aucun justificatif n'a été fourni avec ce paiement.
+                        </div>
+                    `;
+                    if (downloadProofBtn) {
+                        downloadProofBtn.style.display = 'none';
+                    }
                 }
-            };
-
-             window.showRejectionModal = function(paymentId, reference) {
-                 const rejectionReferenceInput = document.getElementById('rejectionReference');
-                 const form = document.getElementById('rejectionForm');
-                 
-                 if (rejectionReferenceInput) rejectionReferenceInput.value = reference;
-                 if (form) form.action = `/payments/validation/${paymentId}/reject`;
-                 
-                 const modal = new bootstrap.Modal(document.getElementById('rejectionModal'));
-                 modal.show();
-             }
-         });
-
-         // Fonction pour afficher la modale de validation admin
-         window.showAdminValidationModal = function(paymentId, reference, paymentProofUrl = null) {
-             const modal = new bootstrap.Modal(document.getElementById('adminValidationModal'));
-             const form = document.getElementById('adminValidationForm');
-             const referenceInput = document.getElementById('adminPaymentReference');
-             const paymentProofPreview = document.getElementById('adminPaymentProofPreview');
-             const downloadProofBtn = document.getElementById('adminDownloadProofBtn');
-             
-             // Mettre à jour les valeurs du formulaire
-             referenceInput.value = reference;
-             
-             // Mettre à jour l'action du formulaire avec la route nommée
-            form.action = `/payments/validation/${paymentId}/admin`;
-             
-             // Afficher la modale
-             modal.show();
-             
-             // Afficher le justificatif de paiement s'il existe
-             if (paymentProofUrl && paymentProofUrl.trim() !== '') {
-                 // Afficher un indicateur de chargement
-                 paymentProofPreview.innerHTML = `
-                     <div class="text-center py-3">
-                         <div class="spinner-border text-primary" role="status">
-                             <span class="visually-hidden">Chargement...</span>
-                         </div>
-                         <p class="mt-2 mb-0">Chargement du justificatif...</p>
-                     </div>`;
-                 
-                 // Créer un élément image pour vérifier si c'est une image
-                 const img = new Image();
-                 img.onload = function() {
-                     // C'est une image, l'afficher
-                     paymentProofPreview.innerHTML = `
-                         <img src="${paymentProofUrl}" class="img-fluid rounded" alt="Justificatif de paiement">
-                         <p class="text-muted mt-2 mb-0">Justificatif fourni par le caissier</p>`;
-                     
-                     // Afficher le bouton de téléchargement
-                     downloadProofBtn.href = paymentProofUrl;
-                     downloadProofBtn.style.display = 'inline-block';
-                 };
-                 
-                 img.onerror = function() {
-                     // Ce n'est pas une image, afficher un lien de téléchargement
-                     paymentProofPreview.innerHTML = `
-                         <div class="text-center py-3">
-                             <i class="fas fa-file-pdf fa-3x text-danger mb-2"></i>
-                             <p class="mb-1">Document de justificatif disponible</p>
-                             <p class="text-muted small mb-0">Format: ${paymentProofUrl.split('.').pop().toUpperCase()}</p>
-                         </div>`;
-                     
-                     // Afficher le bouton de téléchargement
-                     downloadProofBtn.href = paymentProofUrl;
-                     downloadProofBtn.style.display = 'inline-block';
-                 };
-                 
-                 // Définir la source de l'image pour déclencher le chargement
-                 img.src = paymentProofUrl;
-             } else {
-                 // Aucun justificatif disponible
-                 paymentProofPreview.innerHTML = `
-                     <div class="alert alert-warning mb-0">
-                         <i class="fas fa-exclamation-triangle me-2"></i>
-                         Aucun justificatif n'a été fourni avec ce paiement.
-                     </div>`;
-                 downloadProofBtn.style.display = 'none';
-             }
-             
-             // Gérer la soumission du formulaire
-             form.onsubmit = function(e) {
-                 e.preventDefault();
-                 
-                 // Créer un objet FormData pour gérer correctement les fichiers et les champs
-                 const formData = new FormData(form);
-                 
-                 // Ajouter le token CSRF
-                 formData.append('_token', document.querySelector('meta[name="csrf-token"]').content);
-                 
-                 // Envoyer la requête de validation
-                 fetch(form.action, {
-                     method: 'POST',
-                     headers: {
-                         'Accept': 'application/json',
-                         'X-Requested-With': 'XMLHttpRequest'
-                     },
-                     body: formData
-                 })
-                 .then(response => response.json())
-                 .then(data => {
-                     if (data.success) {
-                         // Recharger la page pour voir les mises à jour
-                         window.location.reload();
-                     } else {
-                         alert('Une erreur est survenue lors de la validation: ' + (data.message || 'Erreur inconnue'));
-                     }
-                 })
-                 .catch(error => {
-                     console.error('Erreur:', error);
-                     alert('Une erreur est survenue lors de la validation');
-                 });
-             };
-         };
-     </script>
-     @endpush
+            }
+            
+            // Afficher la modale
+            modal.show();
+        };
+    });
+</script>
+@endpush
 </x-app-layout>

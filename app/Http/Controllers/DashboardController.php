@@ -50,7 +50,7 @@ class DashboardController extends Controller
             return $this->getAdminDashboardData($filters);
         }
         
-        if ($user->isSalesManager()) {
+        if ($user->isManager()) {
             return $this->getSalesManagerDashboardData($filters);
         }
         
@@ -58,56 +58,97 @@ class DashboardController extends Controller
     }
     
     /**
-     * Get admin dashboard data
+     * Get admin dashboard data with comprehensive global overview
      */
     protected function getAdminDashboardData(array $filters)
     {
-        $query = $this->applyFilters(Contract::query(), $filters);
+        // Appliquer les filtres aux prospects
+        $prospectsQuery = Prospect::query();
+        if (!empty($filters['site_id'])) {
+            $prospectsQuery->where('interested_site_id', $filters['site_id']);
+        }
+        if (!empty($filters['commercial_id'])) {
+            $prospectsQuery->where('assigned_to_id', $filters['commercial_id']);
+        }
+        if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
+            $prospectsQuery->whereBetween('created_at', [$filters['start_date'], $filters['end_date']]);
+        }
         
-        $totalClients = Prospect::where('status', 'client')
-            ->when(method_exists(Prospect::class, 'filter'), function($q) use ($filters) {
-                $q->filter($filters);
-            })
-            ->count();
+        // Appliquer les filtres aux contrats
+        $contractsQuery = $this->applyFilters(Contract::query(), $filters);
+        
+        $totalClients = (clone $prospectsQuery)->where('status', 'converti')->count();
             
-        $totalSales = (clone $query)->sum('total_amount');
+        $totalSales = (clone $contractsQuery)->sum('total_amount');
         $totalPaid = $this->getTotalPaid($filters);
         $totalPending = max(0, $totalSales - $totalPaid);
         
-        // Préparer les données pour votre vue existante
+        // Données globales par site
+        $salesBySite = $this->getSalesBySite($filters);
+        
+        // Données par commercial
+        $salesByCommercial = $this->getSalesByCommercial($filters);
+        
+        // Données par mois
+        $monthlySalesData = $this->getMonthlySalesData($filters);
+        
+        // Compteurs de terrains vendus
+        $soldLots = $this->getSoldLotsCount($filters);
+        
+        // Tous les encaissements et décaissements récents
+        $allCashTransactions = \App\Models\CashTransaction::with(['user', 'payment'])
+            ->latest()
+            ->when(!empty($filters['start_date']) && !empty($filters['end_date']), function($q) use ($filters) {
+                $q->whereBetween('transaction_date', [$filters['start_date'], $filters['end_date']]);
+            })
+            ->take(20)
+            ->get();
+        
+        // Statistiques complètes par site
+        $comprehensiveSiteStats = $this->getComprehensiveSiteStats($filters);
+        
         return [
             'stats' => [
-                'total_prospects' => Prospect::count(),
-                'active_prospects' => Prospect::whereIn('status', ['nouveau', 'en_relance', 'interesse'])->count(),
-                'total_sites' => Site::count(),
-                'sold_lots' => $this->getSoldLotsCount($filters),
-                'total_payments' => Payment::sum('amount'),
+                'total_prospects' => (clone $prospectsQuery)->count(),
+                'active_prospects' => (clone $prospectsQuery)->whereIn('status', ['nouveau', 'en_relance', 'interesse'])->count(),
+                'total_sites' => !empty($filters['site_id']) ? 1 : Site::count(),
+                'sold_lots' => $soldLots,
+                'total_sales' => $totalSales,
+                'total_payments' => $totalPaid,
+                'total_to_recover' => $totalPending,
                 'pending_payments' => Payment::where('validation_status', 'pending')->count(),
-                'total_contracts' => Contract::count(),
-                'signed_contracts' => Contract::where('status', 'signe')->count(),
+                'total_contracts' => (clone $contractsQuery)->count(),
+                'signed_contracts' => (clone $contractsQuery)->where('status', 'signe')->count(),
             ],
-            'recentProspects' => Prospect::with('interestedSite')->latest()->take(5)->get(),
-            'recentPayments' => Payment::with(['client', 'site'])->latest()->take(5)->get(),
+            'salesBySite' => $salesBySite,
+            'salesByCommercial' => $salesByCommercial,
+            'monthlySalesData' => $monthlySalesData,
+            'comprehensiveSiteStats' => $comprehensiveSiteStats,
+            'allCashTransactions' => $allCashTransactions,
+            'recentProspects' => (clone $prospectsQuery)->with('interestedSite')->latest()->take(5)->get(),
+            'recentPayments' => $this->getFilteredRecentPayments($filters),
             'pendingPayments' => Payment::where('validation_status', 'pending')->with(['client', 'site'])->get(),
         ];
     }
     
     /**
-     * Get sales manager dashboard data
+     * Get sales manager dashboard data with enhanced commercial oversight
      */
     protected function getSalesManagerDashboardData(array $filters)
     {
         $commercials = User::where('role', 'commercial')
             ->where('is_active', true)
-            ->withCount(['contracts', 'assignedProspects'])
+            ->withCount(['generatedContracts', 'assignedProspects'])
             ->get()
             ->map(function($commercial) use ($filters) {
-                $commercialFilters = array_merge($filters, ['commercial_id' => $commercial->id]);
                 $contracts = $this->getCommercialContracts($commercial->id, $filters);
                 $totalSales = $contracts->sum('total_amount');
                 $totalPaid = $contracts->sum(function($contract) {
                     return $contract->payments->sum('amount');
                 });
+                
+                // Échéances à venir pour ce commercial
+                $upcomingPayments = $this->getUpcomingPayments($filters, 10, $commercial->id);
                 
                 return [
                     'id' => $commercial->id,
@@ -115,32 +156,46 @@ class DashboardController extends Controller
                     'total_clients' => $commercial->assigned_prospects_count,
                     'total_sales' => $totalSales,
                     'total_paid' => $totalPaid,
-                    'pending_amount' => $totalSales - $totalPaid,
-                    'contracts_count' => $commercial->contracts_count,
+                    'pending_amount' => max(0, $totalSales - $totalPaid),
+                    'contracts_count' => $commercial->generated_contracts_count,
+                    'upcoming_payments' => $upcomingPayments,
+                    'pipeline_status' => $this->getCommercialPipelineStatus($commercial->id),
                 ];
             });
             
-        // Préparer les données pour votre vue existante
+        // Prospects à dispatcher (non assignés)
+        $prospectsToDispatch = Prospect::whereNull('assigned_to_id')
+            ->whereIn('status', ['nouveau', 'en_relance', 'interesse'])
+            ->with('interestedSite')
+            ->latest()
+            ->get();
+            
+        // Statistiques complètes par site pour manager
+        $comprehensiveSiteStats = $this->getComprehensiveSiteStats($filters);
+        
         return [
             'stats' => [
-                'total_prospects' => Prospect::count(),
-                'active_prospects' => Prospect::whereIn('status', ['nouveau', 'en_relance', 'interesse'])->count(),
-                'total_sites' => Site::count(),
+                'total_prospects' => $this->getFilteredProspectsCount($filters),
+                'active_prospects' => $this->getFilteredActiveProspectsCount($filters),
+                'total_sites' => !empty($filters['site_id']) ? 1 : Site::count(),
                 'sold_lots' => $this->getSoldLotsCount($filters),
-                'total_payments' => Payment::sum('amount'),
+                'total_payments' => $this->getTotalPaid($filters),
                 'pending_payments' => Payment::where('validation_status', 'pending')->count(),
-                'total_contracts' => Contract::count(),
-                'signed_contracts' => Contract::where('status', 'signe')->count(),
+                'total_contracts' => $this->getFilteredContractsCount($filters),
+                'signed_contracts' => $this->getFilteredSignedContractsCount($filters),
                 'commercials' => $commercials,
+                'prospects_to_dispatch' => $prospectsToDispatch->count(),
             ],
-            'recentProspects' => Prospect::with('interestedSite')->latest()->take(5)->get(),
-            'recentPayments' => Payment::with(['client', 'site'])->latest()->take(5)->get(),
             'commercials' => $commercials,
+            'prospectsToDispatch' => $prospectsToDispatch,
+            'comprehensiveSiteStats' => $comprehensiveSiteStats,
+            'recentProspects' => $this->getFilteredRecentProspects($filters),
+            'recentPayments' => $this->getFilteredRecentPayments($filters),
         ];
     }
     
     /**
-     * Get commercial dashboard data
+     * Get commercial dashboard data with enhanced client management features
      */
     protected function getCommercialDashboardData($user, array $filters)
     {
@@ -152,7 +207,13 @@ class DashboardController extends Controller
             return $contract->payments->sum('amount');
         });
         
-        // Préparer les données pour votre vue existante
+        // Nouvelle fonctionnalité: Liste détaillée des clients avec statuts colorés
+        $clientsData = $this->getCommercialClientsData($user, $filters);
+        $monthlyData = $this->getCommercialMonthlyData($user, $filters);
+        
+        // Prospects avec commentaires filtrés
+        $prospectsWithComments = $this->getProspectsWithFilterableComments($user);
+        
         return [
             'stats' => [
                 'my_prospects' => $user->assignedProspects()->count(),
@@ -161,6 +222,8 @@ class DashboardController extends Controller
                 'my_contracts' => $contracts->count(),
                 'signed_contracts' => $contracts->where('status', 'signe')->count(),
                 'my_payments' => $totalPaid,
+                'total_sales' => $totalSales,
+                'total_to_recover' => max(0, $totalSales - $totalPaid),
                 'validated_payments' => Payment::whereHas('contract', function($q) use ($user) {
                     $q->where('generated_by', $user->id);
                 })->where('validation_status', 'completed')->sum('amount'),
@@ -168,6 +231,9 @@ class DashboardController extends Controller
                     $q->where('generated_by', $user->id);
                 })->where('validation_status', 'pending')->count(),
             ],
+            'clientsData' => $clientsData,
+            'monthlyData' => $monthlyData,
+            'prospectsWithComments' => $prospectsWithComments,
             'recentProspects' => $user->assignedProspects()->with('interestedSite')->latest()->take(5)->get(),
             'recentPayments' => Payment::whereHas('contract', function($q) use ($user) {
                 $q->where('generated_by', $user->id);
@@ -184,7 +250,7 @@ class DashboardController extends Controller
     protected function getCommercialContracts($commercialId, array $filters = [])
     {
         $query = Contract::where('generated_by', $commercialId)
-            ->with(['payments', 'prospect', 'lots']);
+             ->with(['payments', 'client', 'lot']);
             
         return $this->applyFilters($query, $filters)->get();
     }
@@ -366,11 +432,35 @@ class DashboardController extends Controller
     }
     
     /**
+     * Get filtered recent payments
+     */
+    protected function getFilteredRecentPayments(array $filters = [])
+    {
+        $query = Payment::with(['client', 'site']);
+        
+        if (!empty($filters['site_id'])) {
+            $query->where('site_id', $filters['site_id']);
+        }
+        
+        if (!empty($filters['commercial_id'])) {
+            $query->whereHas('client', function($q) use ($filters) {
+                $q->where('assigned_to_id', $filters['commercial_id']);
+            });
+        }
+        
+        if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
+            $query->whereBetween('payment_date', [$filters['start_date'], $filters['end_date']]);
+        }
+        
+        return $query->latest()->take(5)->get();
+    }
+    
+    /**
      * Get upcoming payments
      */
     protected function getUpcomingPayments(array $filters = [], $limit = 10, $commercialId = null)
     {
-        $query = PaymentSchedule::with(['contract.prospect', 'contract.generator'])
+        $query = PaymentSchedule::with(['contract.client', 'contract.generatedBy'])
             ->where('due_date', '>=', now())
             ->where('due_date', '<=', now()->addDays(30))
             ->where('validation_status', 'pending')
@@ -427,19 +517,364 @@ class DashboardController extends Controller
      */
     protected function getFilters(Request $request)
     {
-        $filters = $request->validate([
+        $filters = $request->only([
             'site_id' => 'nullable|exists:sites,id',
             'commercial_id' => 'nullable|exists:users,id',
-            'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'period' => 'nullable|string',
+            'start_date' => 'nullable|date', 
+            'end_date' => 'nullable|date',
         ]);
         
-        // Set default date range if not provided
-        if (empty($filters['start_date']) || empty($filters['end_date'])) {
-            $filters['start_date'] = now()->startOfMonth()->toDateString();
-            $filters['end_date'] = now()->endOfMonth()->toDateString();
+        // Gérer les périodes prédéfinies
+        if (!empty($filters['period']) && $filters['period'] !== 'custom') {
+            $dateRange = $this->getDateRangeFromPeriod($filters['period']);
+            $filters['start_date'] = $dateRange['start'];
+            $filters['end_date'] = $dateRange['end'];
+        }
+        
+        // Définir une plage par défaut si aucune date n'est fournie
+        if (empty($filters['start_date']) && empty($filters['end_date']) && empty($filters['period'])) {
+            $filters['period'] = 'this_month';
+            $dateRange = $this->getDateRangeFromPeriod('this_month');
+            $filters['start_date'] = $dateRange['start'];
+            $filters['end_date'] = $dateRange['end'];
         }
         
         return $filters;
+    }
+    
+    /**
+     * Obtenir la plage de dates selon la période sélectionnée
+     */
+    protected function getDateRangeFromPeriod($period)
+    {
+        $now = now();
+        
+        return match($period) {
+            'today' => [
+                'start' => $now->copy()->startOfDay()->toDateString(),
+                'end' => $now->copy()->endOfDay()->toDateString()
+            ],
+            'this_week' => [
+                'start' => $now->copy()->startOfWeek()->toDateString(),
+                'end' => $now->copy()->endOfWeek()->toDateString()
+            ],
+            'this_month' => [
+                'start' => $now->copy()->startOfMonth()->toDateString(),
+                'end' => $now->copy()->endOfMonth()->toDateString()
+            ],
+            'last_month' => [
+                'start' => $now->copy()->subMonth()->startOfMonth()->toDateString(),
+                'end' => $now->copy()->subMonth()->endOfMonth()->toDateString()
+            ],
+            'this_year' => [
+                'start' => $now->copy()->startOfYear()->toDateString(),
+                'end' => $now->copy()->endOfYear()->toDateString()
+            ],
+            default => [
+                'start' => $now->copy()->startOfMonth()->toDateString(),
+                'end' => $now->copy()->endOfMonth()->toDateString()
+            ]
+        };
+    }
+
+    /**
+     * Get detailed client data for commercial with status colors
+     */
+    protected function getCommercialClientsData($user, array $filters = [])
+    {
+        $contracts = Contract::where('generated_by', $user->id)
+            ->with(['client', 'payments', 'site', 'lot'])
+            ->whereHas('client')
+            ->get();
+            
+        return $contracts->map(function($contract) {
+            $totalAmount = $contract->total_amount;
+            $totalPaid = $contract->payments->sum('amount');
+            $toRecover = max(0, $totalAmount - $totalPaid);
+            
+            $status = $this->getClientPaymentStatus($totalAmount, $totalPaid);
+            
+            return [
+                'client_name' => $contract->client ? $contract->client->full_name : 'Client non défini',
+                'client_id' => $contract->client ? $contract->client->id : null,
+                'contract_id' => $contract->id,
+                'site_name' => $contract->site ? $contract->site->name : 'Site non défini',
+                'lot_number' => $contract->lot ? $contract->lot->number : 'N/A',
+                'total_amount' => $totalAmount,
+                'total_paid' => $totalPaid,
+                'to_recover' => $toRecover,
+                'status' => $status,
+                'status_color' => $this->getStatusColor($status),
+                'last_payment_date' => $contract->payments->max('payment_date'),
+            ];
+        });
+    }
+
+    /**
+     * Get monthly data for commercial
+     */
+    protected function getCommercialMonthlyData($user, array $filters = [])
+    {
+        $currentMonth = now()->format('Y-m');
+        
+        $monthlyPayments = Payment::whereHas('contract', function($q) use ($user) {
+                $q->where('generated_by', $user->id);
+            })
+            ->whereRaw("DATE_FORMAT(payment_date, '%Y-%m') = ?", [$currentMonth])
+            ->get();
+        
+        $monthlySchedules = PaymentSchedule::whereHas('contract', function($q) use ($user) {
+                $q->where('generated_by', $user->id);
+            })
+            ->whereRaw("DATE_FORMAT(due_date, '%Y-%m') = ?", [$currentMonth])
+            ->get();
+        
+        $amountToReceive = $monthlySchedules->where('is_paid', false)->sum('amount');
+        $amountReceived = $monthlyPayments->sum('amount');
+        $remainingBalance = max(0, $amountToReceive - $amountReceived);
+        
+        // Objectifs mensuels (peuvent être configurés ou calculés)
+        $salesTarget = $this->getMonthlySalesTarget($user);
+        $recoveryTarget = $this->getMonthlyRecoveryTarget($user);
+        
+        return [
+            'month' => $currentMonth,
+            'amount_to_receive' => $amountToReceive,
+            'amount_received' => $amountReceived,
+            'remaining_balance' => $remainingBalance,
+            'sales_target' => $salesTarget,
+            'recovery_target' => $recoveryTarget,
+            'sales_progress' => $salesTarget > 0 ? ($amountReceived / $salesTarget * 100) : 0,
+            'recovery_progress' => $recoveryTarget > 0 ? ($amountReceived / $recoveryTarget * 100) : 0,
+        ];
+    }
+
+    /**
+     * Get prospects with filterable comments
+     */
+    protected function getProspectsWithFilterableComments($user)
+    {
+        return $user->assignedProspects()
+            ->with('interestedSite')
+            ->whereNotNull('notes')
+            ->where('notes', '!=', '')
+            ->get()
+            ->map(function($prospect) {
+                return [
+                    'id' => $prospect->id,
+                    'name' => $prospect->full_name,
+                    'phone' => $prospect->phone,
+                    'site' => $prospect->interestedSite->name ?? 'N/A',
+                    'status' => $prospect->status,
+                    'comments' => $prospect->notes,
+                    'comment_category' => $this->categorizeComment($prospect->notes),
+                ];
+            });
+    }
+
+    /**
+     * Get commercial pipeline status for sales manager
+     */
+    protected function getCommercialPipelineStatus($commercialId)
+    {
+        $prospects = Prospect::where('assigned_to_id', $commercialId)->get();
+        
+        return [
+            'total_prospects' => $prospects->count(),
+            'new_prospects' => $prospects->where('status', 'nouveau')->count(),
+            'follow_up_prospects' => $prospects->where('status', 'en_relance')->count(),
+            'interested_prospects' => $prospects->where('status', 'interesse')->count(),
+            'converted_prospects' => $prospects->where('status', 'converti')->count(),
+            'abandoned_prospects' => $prospects->where('status', 'abandonne')->count(),
+        ];
+    }
+
+    /**
+     * Get client payment status with color coding
+     */
+    protected function getClientPaymentStatus($totalAmount, $totalPaid)
+    {
+        if ($totalPaid >= $totalAmount) {
+            return 'À jour';
+        } elseif ($totalPaid > 0) {
+            return 'Paiement partiel';
+        } else {
+            return 'À relancer';
+        }
+    }
+
+    /**
+     * Get status color for display
+     */
+    protected function getStatusColor($status)
+    {
+        switch ($status) {
+            case 'À jour':
+                return 'green';
+            case 'Paiement partiel':
+                return 'orange';
+            case 'À relancer':
+                return 'red';
+            default:
+                return 'gray';
+        }
+    }
+
+    /**
+     * Categorize comments for filtering
+     */
+    protected function categorizeComment($comment)
+    {
+        $comment = strtolower($comment);
+        
+        if (strpos($comment, 'rappeler') !== false || strpos($comment, 'appeler') !== false) {
+            return 'à rappeler';
+        } elseif (strpos($comment, 'visite') !== false) {
+            return 'en attente visite';
+        } elseif (strpos($comment, 'intéressé') !== false) {
+            return 'intéressé';
+        } elseif (strpos($comment, 'réfléchir') !== false) {
+            return 'en réflexion';
+        } else {
+            return 'autre';
+        }
+    }
+    
+    /**
+     * Helper methods pour les filtres
+     */
+    protected function getFilteredProspectsCount(array $filters = [])
+    {
+        $query = Prospect::query();
+        
+        if (!empty($filters['site_id'])) {
+            $query->where('interested_site_id', $filters['site_id']);
+        }
+        
+        if (!empty($filters['commercial_id'])) {
+            $query->where('assigned_to_id', $filters['commercial_id']);
+        }
+        
+        if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
+            $query->whereBetween('created_at', [$filters['start_date'], $filters['end_date']]);
+        }
+        
+        return $query->count();
+    }
+    
+    protected function getFilteredActiveProspectsCount(array $filters = [])
+    {
+        $query = Prospect::whereIn('status', ['nouveau', 'en_relance', 'interesse']);
+        
+        if (!empty($filters['site_id'])) {
+            $query->where('interested_site_id', $filters['site_id']);
+        }
+        
+        if (!empty($filters['commercial_id'])) {
+            $query->where('assigned_to_id', $filters['commercial_id']);
+        }
+        
+        if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
+            $query->whereBetween('created_at', [$filters['start_date'], $filters['end_date']]);
+        }
+        
+        return $query->count();
+    }
+    
+    protected function getFilteredContractsCount(array $filters = [])
+    {
+        return $this->applyFilters(Contract::query(), $filters)->count();
+    }
+    
+    protected function getFilteredSignedContractsCount(array $filters = [])
+    {
+        return $this->applyFilters(Contract::where('status', 'signe'), $filters)->count();
+    }
+    
+    protected function getFilteredRecentProspects(array $filters = [])
+    {
+        $query = Prospect::with('interestedSite');
+        
+        if (!empty($filters['site_id'])) {
+            $query->where('interested_site_id', $filters['site_id']);
+        }
+        
+        if (!empty($filters['commercial_id'])) {
+            $query->where('assigned_to_id', $filters['commercial_id']);
+        }
+        
+        if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
+            $query->whereBetween('created_at', [$filters['start_date'], $filters['end_date']]);
+        }
+        
+        return $query->latest()->take(5)->get();
+    }
+    
+    /**
+     * Get monthly sales target for commercial
+     */
+    protected function getMonthlySalesTarget($user)
+    {
+        // Objectif de base (peut être configuré en base de données)
+        $baseTarget = 5000000; // 5M FCFA par mois
+        
+        // Ajustement selon l'expérience du commercial
+        $monthsExperience = now()->diffInMonths($user->created_at);
+        if ($monthsExperience < 6) {
+            $baseTarget *= 0.7; // 70% pour nouveaux commerciaux
+        } elseif ($monthsExperience > 24) {
+            $baseTarget *= 1.3; // 130% pour commerciaux expérimentés
+        }
+        
+        return $baseTarget;
+    }
+    
+    /**
+     * Get monthly recovery target for commercial
+     */
+    protected function getMonthlyRecoveryTarget($user)
+    {
+        // Calcul basé sur les échéances dues ce mois
+        $currentMonth = now()->format('Y-m');
+        
+        return PaymentSchedule::whereHas('contract', function($q) use ($user) {
+                $q->where('generated_by', $user->id);
+            })
+            ->whereRaw("DATE_FORMAT(due_date, '%Y-%m') = ?", [$currentMonth])
+            ->where('is_paid', false)
+            ->sum('amount');
+    }
+    
+    /**
+     * Get comprehensive site statistics
+     */
+    protected function getComprehensiveSiteStats(array $filters = [])
+    {
+        $sites = Site::with(['lots', 'contracts.payments'])
+            ->when(!empty($filters['site_id']), function($q) use ($filters) {
+                $q->where('id', $filters['site_id']);
+            })
+            ->get();
+            
+        return $sites->map(function($site) {
+            $totalSales = $site->contracts->sum('total_amount');
+            $totalRecovered = $site->contracts->sum(function($contract) {
+                return $contract->payments->sum('amount');
+            });
+            $totalToRecover = max(0, $totalSales - $totalRecovered);
+            
+            return [
+                'id' => $site->id,
+                'name' => $site->name,
+                'total_lots' => $site->lots->count(),
+                'sold_lots' => $site->lots->where('status', 'vendu')->count(),
+                'available_lots' => $site->lots->where('status', 'disponible')->count(),
+                'total_sales' => $totalSales,
+                'total_recovered' => $totalRecovered,
+                'total_to_recover' => $totalToRecover,
+                'recovery_rate' => $totalSales > 0 ? ($totalRecovered / $totalSales * 100) : 0,
+            ];
+        });
     }
 }

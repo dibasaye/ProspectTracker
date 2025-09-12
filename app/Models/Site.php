@@ -35,10 +35,10 @@ class Site extends Model
         'price_cash',
         'enable_36',
         'price_36_months',
-        // Nouveaux champs pour les prix par position
-        'price_angle',
-        'price_facade',
-        'price_interieur',
+        // Correction: utiliser les noms de colonnes corrects
+        'angle_price',
+        'facade_price',
+        'interior_price',
         'supplement_angle',
         'supplement_facade',
         'enable_payment_cash',
@@ -57,9 +57,10 @@ class Site extends Model
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',
         'is_active' => 'boolean',
-        'price_angle' => 'decimal:2',
-        'price_facade' => 'decimal:2',
-        'price_interieur' => 'decimal:2',
+        // Correction: utiliser les noms de colonnes corrects
+        'angle_price' => 'decimal:2',
+        'facade_price' => 'decimal:2',
+        'interior_price' => 'decimal:2',
         'supplement_angle' => 'decimal:2',
         'supplement_facade' => 'decimal:2',
         'enable_payment_cash' => 'boolean',

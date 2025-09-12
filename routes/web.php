@@ -118,16 +118,18 @@ Route::post('/prospects/store-bulk', [ProspectController::class, 'storeBulk'])->
     Route::post('payments/{payment}/validate', [PaymentValidationController::class, 'validatePayment'])->name('payments.validate');
 
     // Routes de validation des paiements
-    Route::prefix('payments/validation')->name('payments.validation.')->group(function() {
-        Route::get('/', [PaymentValidationController::class, 'index'])->name('index');
-        Route::get('/history', [PaymentValidationController::class, 'history'])->name('history');
-        Route::get('/statistics', [PaymentValidationController::class, 'statistics'])->name('statistics');
-        Route::get('/{payment}', [PaymentValidationController::class, 'show'])->name('show');
-        Route::post('/{payment}/validate', [PaymentValidationController::class, 'validatePayment'])->name('validate');
-        Route::post('/{payment}/reject', [PaymentValidationController::class, 'reject'])->name('reject');
-        // Route pour la validation par l'administrateur
-        Route::post('/{payment}/admin', [PaymentValidationController::class, 'validateByAdmin'])->name('admin.validate');
-    });
+   Route::prefix('payments/validation')->name('payments.validation.')->group(function() {
+    Route::get('/', [PaymentValidationController::class, 'index'])->name('index');
+    Route::get('/history', [PaymentValidationController::class, 'history'])->name('history');
+    Route::get('/statistics', [PaymentValidationController::class, 'statistics'])->name('statistics');
+    Route::get('/{payment}', [PaymentValidationController::class, 'show'])->name('show');
+    Route::post('/{payment}/validate', [PaymentValidationController::class, 'validatePayment'])->name('validate');
+    Route::post('/{payment}/reject', [PaymentValidationController::class, 'reject'])->name('reject');
+    
+    // Route spécifique pour la validation par l'administrateur
+    Route::post('/{payment}/admin', [PaymentValidationController::class, 'validateByAdmin'])->name('admin');
+
+});
 
     Route::get('prospects/{prospect}/reservation-payment', [PaymentController::class, 'createReservationPayment'])->name('payments.reservation.create');
     Route::post('prospects/{prospect}/reservation-payment', [PaymentController::class, 'storeReservationPayment'])->name('payments.reservation.store');
@@ -165,9 +167,10 @@ Route::post('/prospects/store-bulk', [ProspectController::class, 'storeBulk'])->
 
     // Payment Schedule management routes
     Route::get('/payment-schedules', [PaymentScheduleController::class, 'index'])->name('payment-schedules.index');
-    Route::put('/payment-schedules/{schedule}/pay', [PaymentScheduleController::class, 'pay'])->name('schedules.pay');
+     Route::post('/payment-schedules/{schedule}/pay', [PaymentScheduleController::class, 'pay'])->name('schedules.pay');
     Route::get('/payment-schedules/{schedule}/receipt', [PaymentScheduleController::class, 'downloadReceipt'])->name('schedules.receipt');
     Route::get('/payment-schedules/export', [PaymentScheduleController::class, 'export'])->name('payment-schedules.export');
+     Route::get('/payments/{payment}/proof', [PaymentScheduleController::class, 'paymentProof'])->name('schedules.payment-proof');
     Route::get('/clients/{client}/payment-schedules', [PaymentScheduleController::class, 'clientSchedules'])->name('clients.payment-schedules');
     
     // Nouvelles routes pour les versements et l'historique
@@ -181,14 +184,22 @@ Route::post('/prospects/store-bulk', [ProspectController::class, 'storeBulk'])->
 
     Route::prefix('sites/{site}')->group(function() {
     Route::get('/lots/create', [LotController::class, 'create'])->name('sites.lots.create');
+    
     Route::post('/lots', [LotController::class, 'store'])->name('sites.lots.store');
     // Route::get('/lots', [LotController::class, 'index'])->name('sites.lots.index');
     Route::post('/lots/{lot}/release', [LotController::class, 'release'])->name('lots.release');
     Route::post('/lots/{lot}/reserve', [LotController::class, 'reserve'])->name('sites.lots.reserve');  // CORRECT
     Route::post('/lots/reserve-by-number', [LotController::class, 'reserveByNumber'])->name('sites.lots.reserve-by-number');
+    
+    
 
 });
+Route::get('/sites/{site}/lots/{lot}/edit', [LotController::class, 'edit'])
+    ->name('sites.lots.edit');
 
+    // Ajoutez cette route dans votre fichier
+Route::put('/sites/{site}/lots/{lot}', [LotController::class, 'update'])
+    ->name('sites.lots.update');
 
 
 Route::get('/notifications/read/{id}', function ($id) {
@@ -223,6 +234,8 @@ Route::post('/sites/{site}/lots', [LotController::class, 'store'])->name('lots.s
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::get('/profile/settings', [ProfileController::class, 'settings'])->name('profile.settings');
+    
 
     // Admin routes
 

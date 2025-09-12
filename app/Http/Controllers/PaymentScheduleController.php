@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 use App\Models\Prospect;
 use App\Models\Payment;
+use Illuminate\Support\Facades\Log;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class PaymentScheduleController extends Controller
 {
@@ -16,6 +18,15 @@ class PaymentScheduleController extends Controller
      */
     public function pay(Request $request, \App\Models\PaymentSchedule $schedule)
     {
+        // Vérification d'autorisation - s'assurer que l'utilisateur peut effectuer ce paiement
+        $user = auth()->user();
+        $client = $schedule->contract->client;
+        
+        // Seuls les administrateurs, responsables commerciaux ou le commercial assigné au client peuvent effectuer un paiement
+        if (!($user->isAdmin() || $user->isManager()) && $client->assigned_to_id !== $user->id) {
+            abort(403, 'Vous n\'êtes pas autorisé à effectuer ce paiement pour ce client.');
+        }
+        
         if ($schedule->is_paid) {
             return back()->with('info', 'Ce paiement a déjà été effectué.');
         }
@@ -84,48 +95,53 @@ class PaymentScheduleController extends Controller
             ])
             ->log('Paiement d\'échéance créé et mis en attente de validation');
 
-        return redirect()->back()
+        return redirect()->route('schedules.payment-proof', $payment->id)
             ->with('success', 'Versement de ' . number_format($request->amount, 0, ',', ' ') . ' F enregistré avec succès pour l\'échéance #' . $schedule->installment_number . '. Le paiement est maintenant en attente de validation par le caissier.');
     }
 
-    public function deposit(Request $request, PaymentSchedule $schedule)
+
+    /**
+     * Générer le reçu de versement initial (paiement en attente de validation)
+     */
+    public function paymentProof(\App\Models\Payment $payment)
     {
-        $request->validate([
-            'amount' => 'required|numeric|min:0',
-            'payment_method' => 'required|string',
-            'notes' => 'nullable|string|max:1000',
-            'payment_proof' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
-        ]);
-
-        // Création d'un nouveau paiement en attente de validation par le caissier
-        $payment = Payment::create([
-            'payment_schedule_id' => $schedule->id,
-            'amount_due' => $schedule->amount,
-            'caissier_amount_received' => $request->amount,
-            'payment_method' => $request->payment_method,
-            'notes' => $request->notes,
-            'caissier_validated' => false,
-            'responsable_validated' => false,
-            'admin_validated' => false,
-            'validation_status' => 'pending',
-        ]);
-
-        if ($request->hasFile('payment_proof')) {
-            $file = $request->file('payment_proof');
-            $payment->payment_proof_path = $file->store('payment_proofs', 'public');
-            $payment->save();
+        // Vérifier l'autorisation - l'utilisateur doit être autorisé à voir ce paiement
+        $user = auth()->user();
+        $client = $payment->client;
+        
+        if (!($user->isAdmin() || $user->isManager()) && $client->assigned_to_id !== $user->id) {
+            abort(403, 'Vous n\'êtes pas autorisé à voir ce reçu.');
+        }
+        
+        // Récupérer l'échéance associée
+        $schedule = $payment->paymentSchedule;
+        
+        if (!$schedule) {
+            return back()->with('error', 'Échéance non trouvée pour ce paiement.');
         }
 
-        return redirect()->back()->with('success', 'Versement de ' . number_format($request->amount, 0, ',', ' ') . ' F enregistré avec succès. Le paiement est maintenant en attente de validation par le caissier. Vous recevrez une notification à chaque étape de validation.');
+        $pdf = Pdf::loadView('receipts.payment_proof', compact('payment', 'schedule'));
+        return $pdf->download('recu_versement_'.$payment->reference_number.'.pdf');
     }
 
+    /**
+     * Télécharger le reçu de paiement final (échéance complètement payée)
+     */
     public function downloadReceipt(\App\Models\PaymentSchedule $schedule)
     {
+        // Vérifier l'autorisation - même logique que pour les autres méthodes
+        $user = auth()->user();
+        $client = $schedule->contract->client;
+        
+        if (!($user->isAdmin() || $user->isManager()) && $client->assigned_to_id !== $user->id) {
+            abort(403, 'Vous n\'êtes pas autorisé à télécharger ce reçu.');
+        }
+        
         if (!$schedule->is_paid) {
             return back()->with('error', 'Ce paiement n\'a pas encore été effectué.');
         }
 
-        $pdf = \PDF::loadView('receipts.pdf', compact('schedule'));
+        $pdf = Pdf::loadView('receipts.pdf', compact('schedule'));
         return $pdf->download('recu_paiement_'.$schedule->id.'.pdf');
     }
 
@@ -166,7 +182,7 @@ class PaymentScheduleController extends Controller
 
         $schedules = $query->orderBy('due_date')->get();
 
-        // Grouper par client et calculer les totaux
+        // Grouper par client et calculer les totaux avec détails des échéances
         $clientsData = [];
         foreach ($schedules as $schedule) {
             $clientId = $schedule->contract->client->id;
@@ -176,7 +192,7 @@ class PaymentScheduleController extends Controller
                 $clientsData[$clientId] = [
                     'client' => $client,
                     'total_amount' => 0,
-                    'total_amount_due' => 0, // Total amount the client needs to pay
+                    'total_amount_due' => 0,
                     'paid_amount' => 0,
                     'pending_amount' => 0,
                     'total_schedules' => 0,
@@ -185,14 +201,23 @@ class PaymentScheduleController extends Controller
                     'overdue_schedules' => 0,
                     'next_due_date' => null,
                     'contracts' => [],
-                    'schedules' => []
+                    'schedules' => [],
+                    'upcoming_schedules' => [], // Prochaines échéances à payer
+                    'current_installments' => [] // Échéances actuelles par numéro
                 ];
             }
             
             $clientsData[$clientId]['total_amount'] += $schedule->amount;
-            $clientsData[$clientId]['total_amount_due'] += $schedule->amount; // Add to total amount due
+            $clientsData[$clientId]['total_amount_due'] += $schedule->amount;
             $clientsData[$clientId]['total_schedules'] += 1;
             $clientsData[$clientId]['schedules'][] = $schedule;
+            
+            // Organiser les échéances par numéro pour un meilleur affichage
+            $installmentNumber = $schedule->installment_number;
+            if (!isset($clientsData[$clientId]['current_installments'][$installmentNumber])) {
+                $clientsData[$clientId]['current_installments'][$installmentNumber] = [];
+            }
+            $clientsData[$clientId]['current_installments'][$installmentNumber][] = $schedule;
             
             if ($schedule->is_paid) {
                 $clientsData[$clientId]['paid_amount'] += $schedule->amount;
@@ -200,6 +225,11 @@ class PaymentScheduleController extends Controller
             } else {
                 $clientsData[$clientId]['pending_amount'] += $schedule->amount;
                 $clientsData[$clientId]['pending_schedules'] += 1;
+                
+                // Ajouter aux échéances à venir (max 3 prochaines échéances non payées)
+                if (count($clientsData[$clientId]['upcoming_schedules']) < 3) {
+                    $clientsData[$clientId]['upcoming_schedules'][] = $schedule;
+                }
                 
                 if ($schedule->due_date->isPast()) {
                     $clientsData[$clientId]['overdue_schedules'] += 1;
@@ -217,6 +247,15 @@ class PaymentScheduleController extends Controller
             if (!isset($clientsData[$clientId]['contracts'][$contractId])) {
                 $clientsData[$clientId]['contracts'][$contractId] = $schedule->contract;
             }
+        }
+
+        // Trier les échéances à venir par date d'échéance pour chaque client
+        foreach ($clientsData as &$clientData) {
+            usort($clientData['upcoming_schedules'], function($a, $b) {
+                return $a->due_date <=> $b->due_date;
+            });
+            // Trier les échéances par numéro d'installment
+            ksort($clientData['current_installments']);
         }
 
         // Convertir en collection et paginer

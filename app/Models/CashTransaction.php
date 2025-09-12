@@ -243,4 +243,8 @@ class CashTransaction extends Model
         
         return $this->save();
     }
+     public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 }
