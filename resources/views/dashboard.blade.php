@@ -151,7 +151,15 @@
                 <div class="col-12">
                     <div class="card card-orange shadow">
                         <div class="card-header bg-light-orange text-white">
-                            <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtres du Dashboard</h5>
+                            <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtres du Dashboard
+                            @if(config('app.debug') && (request()->has('site_id') || request()->has('commercial_id') || request()->has('period')))
+                                <small class="ms-2">[Filtres actifs: 
+                                @if(request('site_id')) Site: {{ request('site_id') }} @endif
+                                @if(request('commercial_id')) Commercial: {{ request('commercial_id') }} @endif
+                                @if(request('period')) Période: {{ request('period') }} @endif
+                                ]</small>
+                            @endif
+                            </h5>
                         </div>
                         <div class="card-body">
                             <form method="GET" action="{{ route('dashboard') }}">
@@ -198,7 +206,7 @@
                                             <i class="fas fa-filter me-1"></i>Appliquer
                                         </button>
                                         <a href="{{ route('dashboard') }}" class="btn btn-outline-secondary">
-                                            <i class="fas fa-refresh me-1"></i>Reset
+                                            <i class="fas fa-redo me-1"></i>Reset
                                         </a>
                                     </div>
                                 </div>

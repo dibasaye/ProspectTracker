@@ -92,8 +92,9 @@ class DashboardController extends Controller
         // Données par mois
         $monthlySalesData = $this->getMonthlySalesData($filters);
         
-        // Compteurs de terrains vendus
+        // Compteurs de terrains vendus - obtenir le total global ET le total filtré
         $soldLots = $this->getSoldLotsCount($filters);
+        $totalSoldLotsGlobal = $this->getTotalSoldLotsCount($filters);
         
         // Tous les encaissements et décaissements récents
         $allCashTransactions = \App\Models\CashTransaction::with(['user', 'payment'])
@@ -112,7 +113,7 @@ class DashboardController extends Controller
                 'total_prospects' => (clone $prospectsQuery)->count(),
                 'active_prospects' => (clone $prospectsQuery)->whereIn('status', ['nouveau', 'en_relance', 'interesse'])->count(),
                 'total_sites' => !empty($filters['site_id']) ? 1 : Site::count(),
-                'sold_lots' => $soldLots,
+                'sold_lots' => $totalSoldLotsGlobal,
                 'total_sales' => $totalSales,
                 'total_payments' => $totalPaid,
                 'total_to_recover' => $totalPending,
@@ -178,7 +179,7 @@ class DashboardController extends Controller
                 'total_prospects' => $this->getFilteredProspectsCount($filters),
                 'active_prospects' => $this->getFilteredActiveProspectsCount($filters),
                 'total_sites' => !empty($filters['site_id']) ? 1 : Site::count(),
-                'sold_lots' => $this->getSoldLotsCount($filters),
+                'sold_lots' => $this->getTotalSoldLotsCount($filters),
                 'total_payments' => $this->getTotalPaid($filters),
                 'pending_payments' => Payment::where('validation_status', 'pending')->count(),
                 'total_contracts' => $this->getFilteredContractsCount($filters),
@@ -331,15 +332,38 @@ class DashboardController extends Controller
             $query->where('site_id', $filters['site_id']);
         }
         
+        if (!empty($filters['commercial_id'])) {
+            $query->whereHas('contract', function($q) use ($filters) {
+                $q->where('generated_by', $filters['commercial_id']);
+            });
+        }
+        
+        // Correction: utiliser created_at au lieu de signature_date qui pourrait ne pas exister
         if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
             $query->whereHas('contract', function($q) use ($filters) {
-                $q->whereBetween('signature_date', [
+                $q->whereBetween('created_at', [
                     $filters['start_date'],
                     $filters['end_date']
                 ]);
             });
         }
         
+        return $query->count();
+    }
+    
+    /**
+     * Get total count of sold lots (global or by site only)
+     */
+    protected function getTotalSoldLotsCount(array $filters = [])
+    {
+        $query = Lot::where('status', 'vendu');
+        
+        // Appliquer seulement le filtre de site si spécifié
+        if (!empty($filters['site_id'])) {
+            $query->where('site_id', $filters['site_id']);
+        }
+        
+        // Ne pas appliquer les filtres de date ou commercial pour le total global
         return $query->count();
     }
     
@@ -517,13 +541,28 @@ class DashboardController extends Controller
      */
     protected function getFilters(Request $request)
     {
-        $filters = $request->only([
-            'site_id' => 'nullable|exists:sites,id',
-            'commercial_id' => 'nullable|exists:users,id',
-            'period' => 'nullable|string',
-            'start_date' => 'nullable|date', 
-            'end_date' => 'nullable|date',
-        ]);
+        $filters = [];
+        
+        // Récupérer les filtres de la requête
+        if ($request->has('site_id') && !empty($request->get('site_id'))) {
+            $filters['site_id'] = $request->get('site_id');
+        }
+        
+        if ($request->has('commercial_id') && !empty($request->get('commercial_id'))) {
+            $filters['commercial_id'] = $request->get('commercial_id');
+        }
+        
+        if ($request->has('period') && !empty($request->get('period'))) {
+            $filters['period'] = $request->get('period');
+        }
+        
+        if ($request->has('start_date') && !empty($request->get('start_date'))) {
+            $filters['start_date'] = $request->get('start_date');
+        }
+        
+        if ($request->has('end_date') && !empty($request->get('end_date'))) {
+            $filters['end_date'] = $request->get('end_date');
+        }
         
         // Gérer les périodes prédéfinies
         if (!empty($filters['period']) && $filters['period'] !== 'custom') {
