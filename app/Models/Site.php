@@ -15,7 +15,9 @@ class Site extends Model
         'location',
         'description',
         'total_area',
+        'area_unit', // Nouvelle colonne pour l'unité
         'total_lots',
+        'launch_date', // Nouvelle colonne
         'base_price_per_sqm',
         'reservation_fee',
         'membership_fee',
@@ -45,12 +47,20 @@ class Site extends Model
         'enable_payment_1_year',
         'enable_payment_2_years',
         'enable_payment_3_years',
+        // Nouveaux pourcentages personnalisés
+        'percentage_1_year',
+        'percentage_2_years',
+        'percentage_3_years',
     ];
 
     protected $casts = [
         'amenities' => 'array',
         'gallery_images' => 'array',
         'total_area' => 'decimal:2',
+        'launch_date' => 'date',
+        'percentage_1_year' => 'decimal:2',
+        'percentage_2_years' => 'decimal:2',
+        'percentage_3_years' => 'decimal:2',
         'base_price_per_sqm' => 'decimal:2',
         'reservation_fee' => 'decimal:2',
         'membership_fee' => 'decimal:2',
@@ -147,5 +157,62 @@ class Site extends Model
         if ($this->enable_payment_2_years) $plans[] = '2_years';
         if ($this->enable_payment_3_years) $plans[] = '3_years';
         return $plans;
+    }
+
+    /**
+     * Retourne la superficie dans l'unité originale
+     */
+    public function getFormattedAreaAttribute(): string
+    {
+        if (!$this->total_area || !$this->area_unit) {
+            return 'Non spécifié';
+        }
+
+        $originalArea = $this->convertAreaFromM2($this->total_area, $this->area_unit);
+        $unitLabel = $this->getAreaUnitLabel($this->area_unit);
+        
+        return number_format($originalArea, 2) . ' ' . $unitLabel;
+    }
+
+    /**
+     * Convertit la superficie depuis m² vers l'unité originale
+     */
+    private function convertAreaFromM2(float $areaInM2, string $targetUnit): float
+    {
+        return match($targetUnit) {
+            'hectare' => $areaInM2 / 10000,
+            'are' => $areaInM2 / 100,
+            'centiare' => $areaInM2, // centiare = m²
+            'm2' => $areaInM2,
+            default => $areaInM2
+        };
+    }
+
+    /**
+     * Retourne le label de l'unité
+     */
+    private function getAreaUnitLabel(string $unit): string
+    {
+        return match($unit) {
+            'hectare' => 'ha',
+            'are' => 'a',
+            'centiare' => 'ca',
+            'm2' => 'm²',
+            default => $unit
+        };
+    }
+
+    /**
+     * Retourne le pourcentage de majoration pour un plan de paiement
+     */
+    public function getPaymentPercentage(string $plan): ?float
+    {
+        return match($plan) {
+            'cash' => 0,
+            '1_year' => $this->percentage_1_year ?? 5,
+            '2_years' => $this->percentage_2_years ?? 10,
+            '3_years' => $this->percentage_3_years ?? 15,
+            default => null
+        };
     }
 }

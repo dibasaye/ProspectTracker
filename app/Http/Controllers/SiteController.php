@@ -31,11 +31,13 @@ class SiteController extends Controller
         'name' => 'required|string|max:255',
         'location' => 'required|string|max:255',
         'description' => 'nullable|string',
-        'total_area' => 'nullable|numeric|min:0',
+        'total_area' => 'required|numeric|min:0',
+        'area_unit' => 'required|in:m2,hectare,are,centiare',
         'total_lots' => 'required|integer|min:0',
         'latitude' => 'nullable|numeric',
         'longitude' => 'nullable|numeric',
         'image_file' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
+        'launch_date' => 'nullable|date',
         
         // Prix du formulaire
         'price_angle' => 'required|numeric|min:0',
@@ -45,31 +47,65 @@ class SiteController extends Controller
         // Frais
         'reservation_fee' => 'required|numeric|min:0',
         'membership_fee' => 'required|numeric|min:0',
+        
+        // Options de paiement avec pourcentages
+        'enable_payment_cash' => 'nullable|boolean',
+        'enable_payment_1_year' => 'nullable|boolean',
+        'enable_payment_2_years' => 'nullable|boolean',
+        'enable_payment_3_years' => 'nullable|boolean',
+        'percentage_1_year' => 'nullable|numeric|min:0|max:100',
+        'percentage_2_years' => 'nullable|numeric|min:0|max:100',
+        'percentage_3_years' => 'nullable|numeric|min:0|max:100',
     ]);
+
+    // Convertir la superficie en m² pour stockage uniforme
+    $areaInM2 = $validated['total_area'];
+    switch($validated['area_unit']) {
+        case 'hectare':
+            $areaInM2 = $validated['total_area'] * 10000;
+            break;
+        case 'are':
+            $areaInM2 = $validated['total_area'] * 100;
+            break;
+        case 'centiare':
+            $areaInM2 = $validated['total_area']; // centiare = m²
+            break;
+        case 'm2':
+        default:
+            $areaInM2 = $validated['total_area'];
+            break;
+    }
 
     // Mapper les données vers les noms des colonnes de la base de données
     $siteData = [
         'name' => $validated['name'],
         'location' => $validated['location'],
         'description' => $validated['description'] ?? null,
-        'total_area' => $validated['total_area'] ?? null,
+        'total_area' => $areaInM2, // Toujours stocké en m²
+        'area_unit' => $validated['area_unit'], // Unité originale
         'total_lots' => $validated['total_lots'],
         'latitude' => $validated['latitude'] ?? null,
         'longitude' => $validated['longitude'] ?? null,
+        'launch_date' => $validated['launch_date'] ?? null,
         
         // CORRECTION : Utiliser les vrais noms des colonnes DB
         'angle_price' => $validated['price_angle'],
-        'facade_price' => $validated['price_facade'],      // ✅ Maintenant inclus
-        'interior_price' => $validated['price_interieur'], // ✅ Maintenant inclus
+        'facade_price' => $validated['price_facade'],      
+        'interior_price' => $validated['price_interieur'], 
         
         'reservation_fee' => $validated['reservation_fee'],
         'membership_fee' => $validated['membership_fee'],
         
-        // Cases à cocher
+        // Options de paiement avec pourcentages personnalisés
         'enable_payment_cash' => $request->has('enable_payment_cash') ? 1 : 0,
         'enable_payment_1_year' => $request->has('enable_payment_1_year') ? 1 : 0,
         'enable_payment_2_years' => $request->has('enable_payment_2_years') ? 1 : 0,
         'enable_payment_3_years' => $request->has('enable_payment_3_years') ? 1 : 0,
+        
+        // Pourcentages personnalisés
+        'percentage_1_year' => $request->has('enable_payment_1_year') ? ($validated['percentage_1_year'] ?? 5) : null,
+        'percentage_2_years' => $request->has('enable_payment_2_years') ? ($validated['percentage_2_years'] ?? 10) : null,
+        'percentage_3_years' => $request->has('enable_payment_3_years') ? ($validated['percentage_3_years'] ?? 15) : null,
         
         // Colonnes avec valeurs par défaut
         'status' => 'active',

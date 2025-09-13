@@ -53,16 +53,34 @@
                             @enderror
                         </div>
                         
-                        <div class="col-md-4">
-                            <label class="form-label">Superficie totale (m²)</label>
+                        <div class="col-md-3">
+                            <label class="form-label">Superficie totale *</label>
                             <input type="number" class="form-control @error('total_area') is-invalid @enderror" 
-                                   name="total_area" value="{{ old('total_area') }}" step="0.01" min="0">
+                                   name="total_area" value="{{ old('total_area') }}" step="0.01" min="0" required>
                             @error('total_area')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         
-                        <div class="col-md-4">
+                        <div class="col-md-3">
+                            <label class="form-label">Unité de mesure *</label>
+                            <select class="form-select @error('area_unit') is-invalid @enderror" name="area_unit" required>
+                                <option value="">Choisir l'unité</option>
+                                <option value="m2" {{ old('area_unit') == 'm2' ? 'selected' : '' }}>Mètre carré (m²)</option>
+                                <option value="hectare" {{ old('area_unit') == 'hectare' ? 'selected' : '' }}>Hectare (ha)</option>
+                                <option value="are" {{ old('area_unit') == 'are' ? 'selected' : '' }}>Are (a)</option>
+                                <option value="centiare" {{ old('area_unit') == 'centiare' ? 'selected' : '' }}>Centiare (ca)</option>
+                            </select>
+                            @error('area_unit')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                            <small class="text-muted">
+                                <div>1 ha = 100 ares = 10 000 m²</div>
+                                <div>1 are = 100 centiares = 100 m²</div>
+                            </small>
+                        </div>
+                        
+                        <div class="col-md-3">
                             <label class="form-label">Nombre total de lots *</label>
                             <input type="number" class="form-control @error('total_lots') is-invalid @enderror" 
                                    name="total_lots" value="{{ old('total_lots') }}" required min="1">
@@ -71,7 +89,7 @@
                             @enderror
                         </div>
                         
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label">Date de lancement</label>
                             <input type="date" class="form-control @error('launch_date') is-invalid @enderror" 
                                    name="launch_date" value="{{ old('launch_date') }}">
@@ -211,57 +229,104 @@
                     <h5 class="mb-0"><i class="fas fa-credit-card me-2"></i>Options de paiement disponibles</h5>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted mb-3">Sélectionnez les modes de paiement autorisés pour ce site.</p>
+                    <p class="text-muted mb-3">Sélectionnez les modes de paiement autorisés et définissez les pourcentages de majoration.</p>
 
-                    <div class="row g-3">
+                    <div class="row g-4">
+                        <!-- Paiement comptant -->
                         <div class="col-md-6">
-                            <!-- Paiement comptant -->
-                            <div class="form-check mb-3 p-3 border rounded">
-                                <input class="form-check-input" type="checkbox" id="chkCash" 
-                                       name="enable_payment_cash" {{ old('enable_payment_cash', true) ? 'checked' : '' }}>
-                                <label class="form-check-label fw-bold text-success" for="chkCash">
-                                    <i class="fas fa-money-bill-wave me-2"></i>Paiement comptant
-                                </label>
-                                <div class="small text-muted mt-1">Prix de base sans majoration</div>
-                            </div>
-
-                            <!-- Paiement 1 an -->
-                            <div class="form-check mb-3 p-3 border rounded">
-                                <input class="form-check-input" type="checkbox" id="chk1Year" 
-                                       name="enable_payment_1_year" {{ old('enable_payment_1_year', true) ? 'checked' : '' }}>
-                                <label class="form-check-label fw-bold text-primary" for="chk1Year">
-                                    <i class="fas fa-calendar-alt me-2"></i>Paiement sur 1 an (+5%)
-                                </label>
-                                <div class="small text-muted mt-1">Prix de base + 5% de majoration</div>
+                            <div class="card border-success">
+                                <div class="card-body">
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="chkCash" 
+                                               name="enable_payment_cash" {{ old('enable_payment_cash', true) ? 'checked' : '' }}>
+                                        <label class="form-check-label fw-bold text-success" for="chkCash">
+                                            <i class="fas fa-money-bill-wave me-2"></i>Paiement comptant
+                                        </label>
+                                    </div>
+                                    <div class="small text-muted">Prix de base sans majoration (0%)</div>
+                                </div>
                             </div>
                         </div>
 
+                        <!-- Paiement 1 an -->
                         <div class="col-md-6">
-                            <!-- Paiement 2 ans -->
-                            <div class="form-check mb-3 p-3 border rounded">
-                                <input class="form-check-input" type="checkbox" id="chk2Years" 
-                                       name="enable_payment_2_years" {{ old('enable_payment_2_years', true) ? 'checked' : '' }}>
-                                <label class="form-check-label fw-bold text-warning" for="chk2Years">
-                                    <i class="fas fa-calendar-alt me-2"></i>Paiement sur 2 ans (+10%)
-                                </label>
-                                <div class="small text-muted mt-1">Prix de base + 10% de majoration</div>
+                            <div class="card border-primary">
+                                <div class="card-body">
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input payment-checkbox" type="checkbox" id="chk1Year" 
+                                               name="enable_payment_1_year" {{ old('enable_payment_1_year', true) ? 'checked' : '' }}
+                                               data-target="percentage1Year">
+                                        <label class="form-check-label fw-bold text-primary" for="chk1Year">
+                                            <i class="fas fa-calendar-alt me-2"></i>Paiement sur 1 an
+                                        </label>
+                                    </div>
+                                    <div class="percentage-input" id="percentage1Year" style="{{ old('enable_payment_1_year', true) ? '' : 'display: none;' }}">
+                                        <label class="form-label small">Pourcentage de majoration (%)</label>
+                                        <input type="number" class="form-control form-control-sm @error('percentage_1_year') is-invalid @enderror" 
+                                               name="percentage_1_year" value="{{ old('percentage_1_year', 5) }}" 
+                                               min="0" max="100" step="0.1" placeholder="Ex: 5">
+                                        @error('percentage_1_year')
+                                            <div class="invalid-feedback">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+                                </div>
                             </div>
+                        </div>
 
-                            <!-- Paiement 3 ans -->
-                            <div class="form-check mb-3 p-3 border rounded">
-                                <input class="form-check-input" type="checkbox" id="chk3Years" 
-                                       name="enable_payment_3_years" {{ old('enable_payment_3_years') ? 'checked' : '' }}>
-                                <label class="form-check-label fw-bold text-danger" for="chk3Years">
-                                    <i class="fas fa-calendar-alt me-2"></i>Paiement sur 3 ans (+15%)
-                                </label>
-                                <div class="small text-muted mt-1">Prix de base + 15% de majoration</div>
+                        <!-- Paiement 2 ans -->
+                        <div class="col-md-6">
+                            <div class="card border-warning">
+                                <div class="card-body">
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input payment-checkbox" type="checkbox" id="chk2Years" 
+                                               name="enable_payment_2_years" {{ old('enable_payment_2_years', true) ? 'checked' : '' }}
+                                               data-target="percentage2Years">
+                                        <label class="form-check-label fw-bold text-warning" for="chk2Years">
+                                            <i class="fas fa-calendar-alt me-2"></i>Paiement sur 2 ans
+                                        </label>
+                                    </div>
+                                    <div class="percentage-input" id="percentage2Years" style="{{ old('enable_payment_2_years', true) ? '' : 'display: none;' }}">
+                                        <label class="form-label small">Pourcentage de majoration (%)</label>
+                                        <input type="number" class="form-control form-control-sm @error('percentage_2_years') is-invalid @enderror" 
+                                               name="percentage_2_years" value="{{ old('percentage_2_years', 10) }}" 
+                                               min="0" max="100" step="0.1" placeholder="Ex: 10">
+                                        @error('percentage_2_years')
+                                            <div class="invalid-feedback">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Paiement 3 ans -->
+                        <div class="col-md-6">
+                            <div class="card border-danger">
+                                <div class="card-body">
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input payment-checkbox" type="checkbox" id="chk3Years" 
+                                               name="enable_payment_3_years" {{ old('enable_payment_3_years') ? 'checked' : '' }}
+                                               data-target="percentage3Years">
+                                        <label class="form-check-label fw-bold text-danger" for="chk3Years">
+                                            <i class="fas fa-calendar-alt me-2"></i>Paiement sur 3 ans
+                                        </label>
+                                    </div>
+                                    <div class="percentage-input" id="percentage3Years" style="{{ old('enable_payment_3_years') ? '' : 'display: none;' }}">
+                                        <label class="form-label small">Pourcentage de majoration (%)</label>
+                                        <input type="number" class="form-control form-control-sm @error('percentage_3_years') is-invalid @enderror" 
+                                               name="percentage_3_years" value="{{ old('percentage_3_years', 15) }}" 
+                                               min="0" max="100" step="0.1" placeholder="Ex: 15">
+                                        @error('percentage_3_years')
+                                            <div class="invalid-feedback">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                     
-                    <div class="alert alert-info mt-3">
+                    <div class="alert alert-info mt-4">
                         <i class="fas fa-info-circle me-2"></i>
-                        <strong>Note :</strong> Les prix finaux des lots seront calculés automatiquement en appliquant les majorations selon le plan de paiement choisi par le client.
+                        <strong>Note :</strong> Les prix finaux des lots seront calculés automatiquement en appliquant les pourcentages de majoration selon le plan de paiement choisi par le client.
                     </div>
                 </div>
             </div>
@@ -281,4 +346,79 @@
             </div>
         </form>
     </div>
+
+    <!-- JavaScript pour gérer l'affichage des champs de pourcentage -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Gérer l'affichage des champs de pourcentage
+            const paymentCheckboxes = document.querySelectorAll('.payment-checkbox');
+            
+            paymentCheckboxes.forEach(function(checkbox) {
+                checkbox.addEventListener('change', function() {
+                    const targetId = this.getAttribute('data-target');
+                    const targetDiv = document.getElementById(targetId);
+                    
+                    if (this.checked) {
+                        targetDiv.style.display = 'block';
+                        // Rendre le champ de pourcentage requis
+                        const percentageInput = targetDiv.querySelector('input[type="number"]');
+                        if (percentageInput) {
+                            percentageInput.required = true;
+                        }
+                    } else {
+                        targetDiv.style.display = 'none';
+                        // Retirer l'obligation du champ
+                        const percentageInput = targetDiv.querySelector('input[type="number"]');
+                        if (percentageInput) {
+                            percentageInput.required = false;
+                            percentageInput.value = '';
+                        }
+                    }
+                });
+            });
+            
+            // Calculateur de superficie (conversion automatique)
+            const areaInput = document.querySelector('input[name="total_area"]');
+            const unitSelect = document.querySelector('select[name="area_unit"]');
+            
+            if (areaInput && unitSelect) {
+                function updateAreaDisplay() {
+                    const area = parseFloat(areaInput.value) || 0;
+                    const unit = unitSelect.value;
+                    
+                    if (area > 0 && unit) {
+                        let conversions = '';
+                        
+                        switch(unit) {
+                            case 'hectare':
+                                conversions = `≈ ${(area * 10000).toLocaleString()} m² | ${(area * 100).toLocaleString()} ares`;
+                                break;
+                            case 'are':
+                                conversions = `≈ ${(area * 100).toLocaleString()} m² | ${(area / 100).toFixed(2)} ha`;
+                                break;
+                            case 'centiare':
+                                conversions = `≈ ${area.toLocaleString()} m² | ${(area / 10000).toFixed(4)} ha`;
+                                break;
+                            case 'm2':
+                                conversions = `≈ ${(area / 10000).toFixed(4)} ha | ${(area / 100).toFixed(2)} ares`;
+                                break;
+                        }
+                        
+                        // Afficher la conversion
+                        let conversionDiv = document.getElementById('area-conversion');
+                        if (!conversionDiv) {
+                            conversionDiv = document.createElement('div');
+                            conversionDiv.id = 'area-conversion';
+                            conversionDiv.className = 'small text-info mt-1';
+                            unitSelect.parentNode.appendChild(conversionDiv);
+                        }
+                        conversionDiv.innerHTML = `<i class="fas fa-calculator me-1"></i>${conversions}`;
+                    }
+                }
+                
+                areaInput.addEventListener('input', updateAreaDisplay);
+                unitSelect.addEventListener('change', updateAreaDisplay);
+            }
+        });
+    </script>
 </x-app-layout>
