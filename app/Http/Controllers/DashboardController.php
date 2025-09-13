@@ -564,26 +564,74 @@ class DashboardController extends Controller
             $filters['end_date'] = $request->get('end_date');
         }
         
-        // Gérer les périodes prédéfinies
-        if (!empty($filters['period']) && $filters['period'] !== 'custom') {
-            $dateRange = $this->getDateRangeFromPeriod($filters['period']);
-            $filters['start_date'] = $dateRange['start'];
-            $filters['end_date'] = $dateRange['end'];
+        if ($request->has('year') && !empty($request->get('year'))) {
+            $filters['year'] = $request->get('year');
         }
         
-        // Définir une plage par défaut si aucune date n'est fournie
-        if (empty($filters['start_date']) && empty($filters['end_date']) && empty($filters['period'])) {
-            $filters['period'] = 'this_month';
-            $dateRange = $this->getDateRangeFromPeriod('this_month');
-            $filters['start_date'] = $dateRange['start'];
-            $filters['end_date'] = $dateRange['end'];
+        // Gérer les filtres par mois et année
+        if (!empty($filters['period']) || !empty($filters['year'])) {
+            $dateRange = $this->getDateRangeFromMonthYear($filters['period'] ?? null, $filters['year'] ?? null);
+            if ($dateRange) {
+                $filters['start_date'] = $dateRange['start'];
+                $filters['end_date'] = $dateRange['end'];
+            }
         }
+        
+        // Ne pas définir de plage par défaut - laisser vide pour "tout"
         
         return $filters;
     }
     
     /**
-     * Obtenir la plage de dates selon la période sélectionnée
+     * Obtenir la plage de dates selon le mois et l'année sélectionnés
+     */
+    protected function getDateRangeFromMonthYear($month = null, $year = null)
+    {
+        $currentYear = $year ?? date('Y');
+        
+        // Si aucun mois spécifié, prendre toute l'année
+        if (empty($month)) {
+            if (!empty($year)) {
+                return [
+                    'start' => "$currentYear-01-01",
+                    'end' => "$currentYear-12-31"
+                ];
+            }
+            return null; // Pas de filtre de date
+        }
+        
+        // Mapping des mois
+        $monthNumbers = [
+            'january' => 1,
+            'february' => 2,
+            'march' => 3,
+            'april' => 4,
+            'may' => 5,
+            'june' => 6,
+            'july' => 7,
+            'august' => 8,
+            'september' => 9,
+            'october' => 10,
+            'november' => 11,
+            'december' => 12,
+        ];
+        
+        if (!isset($monthNumbers[$month])) {
+            return null;
+        }
+        
+        $monthNumber = $monthNumbers[$month];
+        $startDate = Carbon::create($currentYear, $monthNumber, 1)->startOfMonth();
+        $endDate = Carbon::create($currentYear, $monthNumber, 1)->endOfMonth();
+        
+        return [
+            'start' => $startDate->toDateString(),
+            'end' => $endDate->toDateString()
+        ];
+    }
+    
+    /**
+     * Obtenir la plage de dates selon la période sélectionnée (ancienne méthode - gardée pour compatibilité)
      */
     protected function getDateRangeFromPeriod($period)
     {

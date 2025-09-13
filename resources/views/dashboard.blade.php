@@ -152,11 +152,12 @@
                     <div class="card card-orange shadow">
                         <div class="card-header bg-light-orange text-white">
                             <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtres du Dashboard
-                            @if(config('app.debug') && (request()->has('site_id') || request()->has('commercial_id') || request()->has('period')))
+                            @if(config('app.debug') && (request()->has('site_id') || request()->has('commercial_id') || request()->has('period') || request()->has('year')))
                                 <small class="ms-2">[Filtres actifs: 
                                 @if(request('site_id')) Site: {{ request('site_id') }} @endif
                                 @if(request('commercial_id')) Commercial: {{ request('commercial_id') }} @endif
-                                @if(request('period')) Période: {{ request('period') }} @endif
+                                @if(request('period')) Mois: {{ ucfirst(request('period')) }} @endif
+                                @if(request('year')) Année: {{ request('year') }} @endif
                                 ]</small>
                             @endif
                             </h5>
@@ -165,7 +166,7 @@
                             <form method="GET" action="{{ route('dashboard') }}">
                                 <div class="row g-3">
                                     @if(auth()->user()->isAdmin() || auth()->user()->isManager())
-                                        <div class="col-md-3">
+                                        <div class="col-lg-3 col-md-6">
                                             <label for="site_filter" class="form-label text-secondary-brown">Site</label>
                                             <select name="site_id" id="site_filter" class="form-select">
                                                 <option value="">Tous les sites</option>
@@ -177,7 +178,7 @@
                                             </select>
                                         </div>
                                         
-                                        <div class="col-md-3">
+                                        <div class="col-lg-3 col-md-6">
                                             <label for="commercial_filter" class="form-label text-secondary-brown">Commercial</label>
                                             <select name="commercial_id" id="commercial_filter" class="form-select">
                                                 <option value="">Tous les commerciaux</option>
@@ -190,23 +191,49 @@
                                         </div>
                                     @endif
                                     
-                                    <div class="col-md-3">
-                                        <label for="period_filter" class="form-label text-secondary-brown">Période</label>
+                                    <div class="col-lg-3 col-md-6">
+                                        <label for="period_filter" class="form-label text-secondary-brown">Mois</label>
                                         <select name="period" id="period_filter" class="form-select">
-                                            <option value="today" {{ request('period') == 'today' ? 'selected' : '' }}>Aujourd'hui</option>
-                                            <option value="this_week" {{ request('period') == 'this_week' ? 'selected' : '' }}>Cette semaine</option>
-                                            <option value="this_month" {{ request('period', 'this_month') == 'this_month' ? 'selected' : '' }}>Ce mois</option>
-                                            <option value="last_month" {{ request('period') == 'last_month' ? 'selected' : '' }}>Mois dernier</option>
-                                            <option value="this_year" {{ request('period') == 'this_year' ? 'selected' : '' }}>Cette année</option>
+                                            <option value="">Tous les mois</option>
+                                            <option value="january" {{ request('period') == 'january' ? 'selected' : '' }}>Janvier</option>
+                                            <option value="february" {{ request('period') == 'february' ? 'selected' : '' }}>Février</option>
+                                            <option value="march" {{ request('period') == 'march' ? 'selected' : '' }}>Mars</option>
+                                            <option value="april" {{ request('period') == 'april' ? 'selected' : '' }}>Avril</option>
+                                            <option value="may" {{ request('period') == 'may' ? 'selected' : '' }}>Mai</option>
+                                            <option value="june" {{ request('period') == 'june' ? 'selected' : '' }}>Juin</option>
+                                            <option value="july" {{ request('period') == 'july' ? 'selected' : '' }}>Juillet</option>
+                                            <option value="august" {{ request('period') == 'august' ? 'selected' : '' }}>Août</option>
+                                            <option value="september" {{ request('period') == 'september' ? 'selected' : '' }}>Septembre</option>
+                                            <option value="october" {{ request('period') == 'october' ? 'selected' : '' }}>Octobre</option>
+                                            <option value="november" {{ request('period') == 'november' ? 'selected' : '' }}>Novembre</option>
+                                            <option value="december" {{ request('period') == 'december' ? 'selected' : '' }}>Décembre</option>
                                         </select>
                                     </div>
                                     
-                                    <div class="col-md-3 d-flex align-items-end">
+                                    <div class="col-lg-3 col-md-6">
+                                        <label for="year_filter" class="form-label text-secondary-brown">Année</label>
+                                        <select name="year" id="year_filter" class="form-select">
+                                            @php
+                                                $currentYear = date('Y');
+                                                $startYear = $currentYear - 2; // 2 ans en arrière
+                                                $endYear = $currentYear + 1;   // 1 an en avant
+                                            @endphp
+                                            <option value="">Toutes les années</option>
+                                            @for($year = $endYear; $year >= $startYear; $year--)
+                                                <option value="{{ $year }}" {{ request('year', $currentYear) == $year ? 'selected' : '' }}>{{ $year }}</option>
+                                            @endfor
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <!-- Boutons sur une nouvelle ligne -->
+                                <div class="row mt-3">
+                                    <div class="col-12 d-flex justify-content-end">
                                         <button type="submit" class="btn btn-orange me-2">
-                                            <i class="fas fa-filter me-1"></i>Appliquer
+                                            <i class="fas fa-filter me-1"></i>Appliquer les filtres
                                         </button>
                                         <a href="{{ route('dashboard') }}" class="btn btn-outline-secondary">
-                                            <i class="fas fa-redo me-1"></i>Reset
+                                            <i class="fas fa-redo me-1"></i>Réinitialiser
                                         </a>
                                     </div>
                                 </div>
