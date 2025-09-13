@@ -92,9 +92,8 @@ class DashboardController extends Controller
         // Données par mois
         $monthlySalesData = $this->getMonthlySalesData($filters);
         
-        // Compteurs de terrains vendus - obtenir le total global ET le total filtré
+        // Compteurs de terrains vendus - respecter les filtres appliqués
         $soldLots = $this->getSoldLotsCount($filters);
-        $totalSoldLotsGlobal = $this->getTotalSoldLotsCount($filters);
         
         // Tous les encaissements et décaissements récents
         $allCashTransactions = \App\Models\CashTransaction::with(['user', 'payment'])
@@ -113,7 +112,7 @@ class DashboardController extends Controller
                 'total_prospects' => (clone $prospectsQuery)->count(),
                 'active_prospects' => (clone $prospectsQuery)->whereIn('status', ['nouveau', 'en_relance', 'interesse'])->count(),
                 'total_sites' => !empty($filters['site_id']) ? 1 : Site::count(),
-                'sold_lots' => $totalSoldLotsGlobal,
+                'sold_lots' => $soldLots,
                 'total_sales' => $totalSales,
                 'total_payments' => $totalPaid,
                 'total_to_recover' => $totalPending,
@@ -179,7 +178,7 @@ class DashboardController extends Controller
                 'total_prospects' => $this->getFilteredProspectsCount($filters),
                 'active_prospects' => $this->getFilteredActiveProspectsCount($filters),
                 'total_sites' => !empty($filters['site_id']) ? 1 : Site::count(),
-                'sold_lots' => $this->getTotalSoldLotsCount($filters),
+                'sold_lots' => $this->getSoldLotsCount($filters),
                 'total_payments' => $this->getTotalPaid($filters),
                 'pending_payments' => Payment::where('validation_status', 'pending')->count(),
                 'total_contracts' => $this->getFilteredContractsCount($filters),
@@ -332,19 +331,31 @@ class DashboardController extends Controller
             $query->where('site_id', $filters['site_id']);
         }
         
+        // Si on filtre par commercial, on doit avoir un contrat
         if (!empty($filters['commercial_id'])) {
             $query->whereHas('contract', function($q) use ($filters) {
                 $q->where('generated_by', $filters['commercial_id']);
             });
         }
         
-        // Correction: utiliser created_at au lieu de signature_date qui pourrait ne pas exister
+        // Si on filtre par date, vérifier d'abord s'il y a un contrat, sinon utiliser updated_at du lot
         if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
-            $query->whereHas('contract', function($q) use ($filters) {
-                $q->whereBetween('created_at', [
-                    $filters['start_date'],
-                    $filters['end_date']
-                ]);
+            $query->where(function($q) use ($filters) {
+                // Cas 1: Lot avec contrat - utiliser la date du contrat
+                $q->whereHas('contract', function($contractQuery) use ($filters) {
+                    $contractQuery->whereBetween('created_at', [
+                        $filters['start_date'],
+                        $filters['end_date']
+                    ]);
+                })
+                // Cas 2: Lot sans contrat - utiliser la date de mise à jour du lot
+                ->orWhere(function($lotQuery) use ($filters) {
+                    $lotQuery->whereDoesntHave('contract')
+                             ->whereBetween('updated_at', [
+                                 $filters['start_date'],
+                                 $filters['end_date']
+                             ]);
+                });
             });
         }
         

@@ -255,7 +255,13 @@
                                         <div class="flex-grow-1">
                                             <h6 class="text-secondary-brown mb-1">Terrains Vendus</h6>
                                             <h3 class="counter text-primary-orange mb-0">{{ $stats['sold_lots'] }}</h3>
-                                            <small class="text-muted">Total global</small>
+                                            <small class="text-muted">
+                                                @if(request('period') || request('year') || request('site_id') || request('commercial_id'))
+                                                    Selon filtres appliqués
+                                                @else
+                                                    Total global
+                                                @endif
+                                            </small>
                                         </div>
                                         <div class="text-primary-orange">
                                             <i class="fas fa-map-marked-alt fa-2x"></i>
