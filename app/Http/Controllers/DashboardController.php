@@ -92,7 +92,7 @@ class DashboardController extends Controller
         // Données par mois
         $monthlySalesData = $this->getMonthlySalesData($filters);
         
-        // Compteurs de terrains vendus
+        // Compteurs de terrains vendus - respecter les filtres appliqués
         $soldLots = $this->getSoldLotsCount($filters);
         
         // Tous les encaissements et décaissements récents
@@ -331,15 +331,50 @@ class DashboardController extends Controller
             $query->where('site_id', $filters['site_id']);
         }
         
-        if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
+        // Si on filtre par commercial, on doit avoir un contrat
+        if (!empty($filters['commercial_id'])) {
             $query->whereHas('contract', function($q) use ($filters) {
-                $q->whereBetween('signature_date', [
-                    $filters['start_date'],
-                    $filters['end_date']
-                ]);
+                $q->where('generated_by', $filters['commercial_id']);
             });
         }
         
+        // Si on filtre par date, vérifier d'abord s'il y a un contrat, sinon utiliser updated_at du lot
+        if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
+            $query->where(function($q) use ($filters) {
+                // Cas 1: Lot avec contrat - utiliser la date du contrat
+                $q->whereHas('contract', function($contractQuery) use ($filters) {
+                    $contractQuery->whereBetween('created_at', [
+                        $filters['start_date'],
+                        $filters['end_date']
+                    ]);
+                })
+                // Cas 2: Lot sans contrat - utiliser la date de mise à jour du lot
+                ->orWhere(function($lotQuery) use ($filters) {
+                    $lotQuery->whereDoesntHave('contract')
+                             ->whereBetween('updated_at', [
+                                 $filters['start_date'],
+                                 $filters['end_date']
+                             ]);
+                });
+            });
+        }
+        
+        return $query->count();
+    }
+    
+    /**
+     * Get total count of sold lots (global or by site only)
+     */
+    protected function getTotalSoldLotsCount(array $filters = [])
+    {
+        $query = Lot::where('status', 'vendu');
+        
+        // Appliquer seulement le filtre de site si spécifié
+        if (!empty($filters['site_id'])) {
+            $query->where('site_id', $filters['site_id']);
+        }
+        
+        // Ne pas appliquer les filtres de date ou commercial pour le total global
         return $query->count();
     }
     
@@ -517,34 +552,97 @@ class DashboardController extends Controller
      */
     protected function getFilters(Request $request)
     {
-        $filters = $request->only([
-            'site_id' => 'nullable|exists:sites,id',
-            'commercial_id' => 'nullable|exists:users,id',
-            'period' => 'nullable|string',
-            'start_date' => 'nullable|date', 
-            'end_date' => 'nullable|date',
-        ]);
+        $filters = [];
         
-        // Gérer les périodes prédéfinies
-        if (!empty($filters['period']) && $filters['period'] !== 'custom') {
-            $dateRange = $this->getDateRangeFromPeriod($filters['period']);
-            $filters['start_date'] = $dateRange['start'];
-            $filters['end_date'] = $dateRange['end'];
+        // Récupérer les filtres de la requête
+        if ($request->has('site_id') && !empty($request->get('site_id'))) {
+            $filters['site_id'] = $request->get('site_id');
         }
         
-        // Définir une plage par défaut si aucune date n'est fournie
-        if (empty($filters['start_date']) && empty($filters['end_date']) && empty($filters['period'])) {
-            $filters['period'] = 'this_month';
-            $dateRange = $this->getDateRangeFromPeriod('this_month');
-            $filters['start_date'] = $dateRange['start'];
-            $filters['end_date'] = $dateRange['end'];
+        if ($request->has('commercial_id') && !empty($request->get('commercial_id'))) {
+            $filters['commercial_id'] = $request->get('commercial_id');
         }
+        
+        if ($request->has('period') && !empty($request->get('period'))) {
+            $filters['period'] = $request->get('period');
+        }
+        
+        if ($request->has('start_date') && !empty($request->get('start_date'))) {
+            $filters['start_date'] = $request->get('start_date');
+        }
+        
+        if ($request->has('end_date') && !empty($request->get('end_date'))) {
+            $filters['end_date'] = $request->get('end_date');
+        }
+        
+        if ($request->has('year') && !empty($request->get('year'))) {
+            $filters['year'] = $request->get('year');
+        }
+        
+        // Gérer les filtres par mois et année
+        if (!empty($filters['period']) || !empty($filters['year'])) {
+            $dateRange = $this->getDateRangeFromMonthYear($filters['period'] ?? null, $filters['year'] ?? null);
+            if ($dateRange) {
+                $filters['start_date'] = $dateRange['start'];
+                $filters['end_date'] = $dateRange['end'];
+            }
+        }
+        
+        // Ne pas définir de plage par défaut - laisser vide pour "tout"
         
         return $filters;
     }
     
     /**
-     * Obtenir la plage de dates selon la période sélectionnée
+     * Obtenir la plage de dates selon le mois et l'année sélectionnés
+     */
+    protected function getDateRangeFromMonthYear($month = null, $year = null)
+    {
+        $currentYear = $year ?? date('Y');
+        
+        // Si aucun mois spécifié, prendre toute l'année
+        if (empty($month)) {
+            if (!empty($year)) {
+                return [
+                    'start' => "$currentYear-01-01",
+                    'end' => "$currentYear-12-31"
+                ];
+            }
+            return null; // Pas de filtre de date
+        }
+        
+        // Mapping des mois
+        $monthNumbers = [
+            'january' => 1,
+            'february' => 2,
+            'march' => 3,
+            'april' => 4,
+            'may' => 5,
+            'june' => 6,
+            'july' => 7,
+            'august' => 8,
+            'september' => 9,
+            'october' => 10,
+            'november' => 11,
+            'december' => 12,
+        ];
+        
+        if (!isset($monthNumbers[$month])) {
+            return null;
+        }
+        
+        $monthNumber = $monthNumbers[$month];
+        $startDate = Carbon::create($currentYear, $monthNumber, 1)->startOfMonth();
+        $endDate = Carbon::create($currentYear, $monthNumber, 1)->endOfMonth();
+        
+        return [
+            'start' => $startDate->toDateString(),
+            'end' => $endDate->toDateString()
+        ];
+    }
+    
+    /**
+     * Obtenir la plage de dates selon la période sélectionnée (ancienne méthode - gardée pour compatibilité)
      */
     protected function getDateRangeFromPeriod($period)
     {
