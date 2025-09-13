@@ -238,7 +238,7 @@
                                 <div class="card-body">
                                     <div class="form-check mb-3">
                                         <input class="form-check-input" type="checkbox" id="chkCash" 
-                                               name="enable_payment_cash" {{ old('enable_payment_cash', true) ? 'checked' : '' }}>
+                                               name="enable_payment_cash" value="1" {{ old('enable_payment_cash', true) ? 'checked' : '' }}>
                                         <label class="form-check-label fw-bold text-success" for="chkCash">
                                             <i class="fas fa-money-bill-wave me-2"></i>Paiement comptant
                                         </label>
@@ -254,7 +254,7 @@
                                 <div class="card-body">
                                     <div class="form-check mb-3">
                                         <input class="form-check-input payment-checkbox" type="checkbox" id="chk1Year" 
-                                               name="enable_payment_1_year" {{ old('enable_payment_1_year', true) ? 'checked' : '' }}
+                                               name="enable_payment_1_year" value="1" {{ old('enable_payment_1_year', true) ? 'checked' : '' }}
                                                data-target="percentage1Year">
                                         <label class="form-check-label fw-bold text-primary" for="chk1Year">
                                             <i class="fas fa-calendar-alt me-2"></i>Paiement sur 1 an
@@ -279,7 +279,7 @@
                                 <div class="card-body">
                                     <div class="form-check mb-3">
                                         <input class="form-check-input payment-checkbox" type="checkbox" id="chk2Years" 
-                                               name="enable_payment_2_years" {{ old('enable_payment_2_years', true) ? 'checked' : '' }}
+                                               name="enable_payment_2_years" value="1" {{ old('enable_payment_2_years', true) ? 'checked' : '' }}
                                                data-target="percentage2Years">
                                         <label class="form-check-label fw-bold text-warning" for="chk2Years">
                                             <i class="fas fa-calendar-alt me-2"></i>Paiement sur 2 ans
@@ -304,7 +304,7 @@
                                 <div class="card-body">
                                     <div class="form-check mb-3">
                                         <input class="form-check-input payment-checkbox" type="checkbox" id="chk3Years" 
-                                               name="enable_payment_3_years" {{ old('enable_payment_3_years') ? 'checked' : '' }}
+                                               name="enable_payment_3_years" value="1" {{ old('enable_payment_3_years') ? 'checked' : '' }}
                                                data-target="percentage3Years">
                                         <label class="form-check-label fw-bold text-danger" for="chk3Years">
                                             <i class="fas fa-calendar-alt me-2"></i>Paiement sur 3 ans

@@ -48,11 +48,11 @@ class SiteController extends Controller
         'reservation_fee' => 'required|numeric|min:0',
         'membership_fee' => 'required|numeric|min:0',
         
-        // Options de paiement avec pourcentages
-        'enable_payment_cash' => 'nullable|boolean',
-        'enable_payment_1_year' => 'nullable|boolean',
-        'enable_payment_2_years' => 'nullable|boolean',
-        'enable_payment_3_years' => 'nullable|boolean',
+        // Options de paiement avec pourcentages (les checkboxes peuvent être absentes)
+        'enable_payment_cash' => 'sometimes|boolean',
+        'enable_payment_1_year' => 'sometimes|boolean',
+        'enable_payment_2_years' => 'sometimes|boolean',
+        'enable_payment_3_years' => 'sometimes|boolean',
         'percentage_1_year' => 'nullable|numeric|min:0|max:100',
         'percentage_2_years' => 'nullable|numeric|min:0|max:100',
         'percentage_3_years' => 'nullable|numeric|min:0|max:100',
@@ -97,15 +97,15 @@ class SiteController extends Controller
         'membership_fee' => $validated['membership_fee'],
         
         // Options de paiement avec pourcentages personnalisés
-        'enable_payment_cash' => $request->has('enable_payment_cash') ? 1 : 0,
-        'enable_payment_1_year' => $request->has('enable_payment_1_year') ? 1 : 0,
-        'enable_payment_2_years' => $request->has('enable_payment_2_years') ? 1 : 0,
-        'enable_payment_3_years' => $request->has('enable_payment_3_years') ? 1 : 0,
+        'enable_payment_cash' => $request->boolean('enable_payment_cash'),
+        'enable_payment_1_year' => $request->boolean('enable_payment_1_year'),
+        'enable_payment_2_years' => $request->boolean('enable_payment_2_years'),
+        'enable_payment_3_years' => $request->boolean('enable_payment_3_years'),
         
         // Pourcentages personnalisés
-        'percentage_1_year' => $request->has('enable_payment_1_year') ? ($validated['percentage_1_year'] ?? 5) : null,
-        'percentage_2_years' => $request->has('enable_payment_2_years') ? ($validated['percentage_2_years'] ?? 10) : null,
-        'percentage_3_years' => $request->has('enable_payment_3_years') ? ($validated['percentage_3_years'] ?? 15) : null,
+        'percentage_1_year' => $request->boolean('enable_payment_1_year') ? ($validated['percentage_1_year'] ?? 5) : null,
+        'percentage_2_years' => $request->boolean('enable_payment_2_years') ? ($validated['percentage_2_years'] ?? 10) : null,
+        'percentage_3_years' => $request->boolean('enable_payment_3_years') ? ($validated['percentage_3_years'] ?? 15) : null,
         
         // Colonnes avec valeurs par défaut
         'status' => 'active',
